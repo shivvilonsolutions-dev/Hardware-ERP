@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: hardware-erp-backend-nodejs
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: hardware-erp-db
+          property: connectionString

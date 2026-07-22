@@ -1,0 +1,48 @@
+{
+  "name": "Hardware ERP Manufacturing",
+  "short_name": "Hardware ERP",
+  "description": "Manufacturing ERP system for managing orders, processes, parties, and inventory",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f1f5f9",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "shortcuts": [
+    {
+      "name": "New Order",
+      "short_name": "Order",
+      "description": "Create a new order",
+      "url": "/new-order",
+      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Process",
+      "short_name": "Process",
+      "description": "Manage manufacturing process",
+      "url": "/process",
+      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Reports",
+      "short_name": "Reports",
+      "description": "View reports and analytics",
+      "url": "/reports",
+      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
+    }
+  ]
+}

@@ -10,8 +10,20 @@ import api from "@/api/api";
 function NewOrder() {
 
   const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [clientNames, setClientNames] = useState([
+    "ABC Industries",
+    "XYZ Foods",
+    "Patidar Group",
+  ]);
+  const [productNames, setProductNames] = useState([
+    "Product A",
+    "Product B",
+    "Product C",
+  ]);
 
   const fetchOrders = async () => {
+  setLoading(true);
   try {
     const res = await api.get("/orders");
 
@@ -21,13 +33,15 @@ function NewOrder() {
 
   } catch (error) {
     console.error(error);
+    alert("Failed to fetch orders");
+  } finally {
+    setLoading(false);
   }
 };
 
 useEffect(() => {
   fetchOrders();
 }, []);
-
 
   const [formData, setFormData] = useState({
   clientName: "",
@@ -110,17 +124,16 @@ const handleSaveOrder = async () => {
   label="Client Name"
   required
   value={formData.clientName}
-  onChange={(e) =>
+  onChange={(value) =>
     setFormData({
       ...formData,
-      clientName: e.target.value,
+      clientName: value,
     })
   }
-  options={[
-    "ABC Industries",
-    "XYZ Foods",
-    "Patidar Group",
-  ]}
+  options={clientNames}
+  onAddOption={(newClient) => {
+    setClientNames([...clientNames, newClient]);
+  }}
 />
 
 <div>
@@ -146,17 +159,16 @@ const handleSaveOrder = async () => {
   label="Product Name"
   required
   value={formData.productName}
-  onChange={(e) =>
+  onChange={(value) =>
     setFormData({
       ...formData,
-      productName: e.target.value,
+      productName: value,
     })
   }
-  options={[
-    "Product A",
-    "Product B",
-    "Product C",
-  ]}
+  options={productNames}
+  onAddOption={(newProduct) => {
+    setProductNames([...productNames, newProduct]);
+  }}
 />
 
   </div>
@@ -274,14 +286,15 @@ const handleSaveOrder = async () => {
 
 </div>
 
- {orders.length === 0 ? (
-
+ {loading ? (
+  <div className="py-10 text-center text-slate-500">
+    Loading orders...
+  </div>
+) : orders.length === 0 ? (
   <div className="py-10 text-center text-slate-500">
     No Orders Found
   </div>
-
 ) : (
-
   orders.map((order) => (
   <div
     key={order.id}
@@ -309,7 +322,7 @@ const handleSaveOrder = async () => {
       />
     </div>
   </div>
- ))
+  ))
 
 )}
 

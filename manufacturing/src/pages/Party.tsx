@@ -9,17 +9,13 @@ import { useState, useEffect } from "react";
 import api from "@/api/api";
 
 
-const initialParties = [];
-
-
-
 function Party() {
 
 const [showForm, setShowForm] =
   useState(false);
 
   const [editIndex, setEditIndex] =
-  useState(null);
+  useState<number | null>(null);
 
   const [showView, setShowView] =
   useState(false);
@@ -29,6 +25,7 @@ const [selectedParty, setSelectedParty] =
 
  const [newParty, setNewParty] =
   useState({
+    id: null as number | null,
     name: "",
     processType: "",
     order: "",
@@ -94,43 +91,50 @@ const handleSaveParty = async () => {
   return;
 }
 
+try {
+  const payload = {
+    party_name: newParty.name,
+    process_type: newParty.processType,
+    current_order: newParty.order,
+    current_process: `Process ${nextProcess}`,
+    quantity_pcs: Number(newParty.quantity),
+    status: "active",
+    size: newParty.size,
+  };
 
-const payload = {
-  party_name: newParty.name,
-  process_type: newParty.processType,
-  current_order: newParty.order,
-  current_process: `Process ${nextProcess}`,
-  quantity_pcs: Number(newParty.quantity),
-  status: "active",
-  size: newParty.size,
-};
+  console.log("Payload:", payload);
 
-console.log("Payload:", payload);
+  let response;
+  if (editIndex !== null) {
+    // Update existing party
+    response = await api.put(`/parties/${newParty.id}`, payload);
+    alert("Party Updated Successfully");
+  } else {
+    // Create new party
+    response = await api.post("/parties", payload);
+    alert("Party Saved Successfully");
+  }
 
-
- const response = await api.post(
-  "/parties",
-  payload
-);
-
-console.log(
-  "Party Saved",
-  response.data
-);
-
-alert("Party Saved Successfully");
+  console.log("Party Response:", response.data);
 
   setNewParty({
+    id: null,
     name: "",
     processType: "",
     order: "",
     quantity: "",
     size: "",
+    process: "",
     status: "Active",
   });
 
   setShowForm(false);
+  setEditIndex(null);
   fetchParties();
+} catch (error) {
+  console.error(error);
+  alert("Failed to save party");
+}
 };
 
 const totalParties = partyList.length;

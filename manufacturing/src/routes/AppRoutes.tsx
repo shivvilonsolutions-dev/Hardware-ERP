@@ -5,6 +5,7 @@ import Process from "@/pages/Process";
 import Reports from "@/pages/Reports";
 import ProcessOrders from "@/pages/ProcessOrders";
 import Party from "@/pages/Party";
+import Report from "@/pages/Report";
 
 import Inventory from "@/pages/Inventory";
 
@@ -28,6 +29,10 @@ export const router = createBrowserRouter([
 {
   path: "/reports",
   element: <Reports />,
+},
+{
+  path: "/report/:orderId",
+  element: <Report />,
 },
 {
   path: "/party",

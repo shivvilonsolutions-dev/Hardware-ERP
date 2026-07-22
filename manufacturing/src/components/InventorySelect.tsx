@@ -1,57 +1,56 @@
 import { useState } from "react";
-import { Plus } from "lucide-react";
 
-type FormSelectProps = {
+interface InventoryItem {
+  id: number;
+  partyName: string;
+  orderName: string;
+  orderDate: string;
+  processName: string;
+  quantity: number;
+  unit: string;
+  status: string;
+}
+
+type InventorySelectProps = {
   label: string;
-  required?: boolean;
-  options: string[];
+  options: InventoryItem[];
   value?: string;
-  onChange?: (value: string) => void;
-  onAddOption?: (newOption: string) => void;
+  onChange?: (item: InventoryItem) => void;
   placeholder?: string;
 };
 
-function FormSelect({
+function InventorySelect({
   label,
-  required = false,
   options,
   value,
   onChange,
-  onAddOption,
-  placeholder = `Choose or type ${label.toLowerCase()}`,
-}: FormSelectProps) {
+  placeholder = "Select from inventory",
+}: InventorySelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value || "");
   const [filteredOptions, setFilteredOptions] = useState(options);
 
+  const formatItem = (item: InventoryItem) => {
+    return `${item.partyName} - ${item.orderName} - ${item.quantity} ${item.unit}`;
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setInputValue(newValue);
-    
-    if (onChange) {
-      onChange(newValue);
-    }
 
     // Filter options based on input
-    const filtered = options.filter((option) =>
-      option.toLowerCase().includes(newValue.toLowerCase())
+    const filtered = options.filter((item) =>
+      formatItem(item).toLowerCase().includes(newValue.toLowerCase())
     );
     setFilteredOptions(filtered);
     setIsOpen(true);
   };
 
-  const handleSelectOption = (option: string) => {
-    setInputValue(option);
+  const handleSelectOption = (item: InventoryItem) => {
+    setInputValue(formatItem(item));
     setIsOpen(false);
     if (onChange) {
-      onChange(option);
-    }
-  };
-
-  const handleAddNew = () => {
-    if (inputValue.trim() && onAddOption) {
-      onAddOption(inputValue.trim());
-      setIsOpen(false);
+      onChange(item);
     }
   };
 
@@ -64,39 +63,31 @@ function FormSelect({
     <div className="relative">
       <label className="block mb-2 font-medium">
         {label}
-        {required && (
-          <span className="text-red-500"> *</span>
-        )}
       </label>
 
-      <div className="relative">
+      {/* <div className="relative">
         <input
           type="text"
           value={inputValue}
           onChange={handleInputChange}
           onFocus={handleFocus}
           placeholder={placeholder}
-          className="w-full border border-slate-200 rounded-xl px-4 py-3 pr-10 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-        
-        <button
-          onClick={handleAddNew}
-          className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-          title="Add new option"
-        >
-          <Plus size={18} />
-        </button>
-      </div>
+      </div> */}
 
       {isOpen && filteredOptions.length > 0 && (
         <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
-          {filteredOptions.map((option) => (
+          {filteredOptions.map((item) => (
             <div
-              key={option}
-              onClick={() => handleSelectOption(option)}
+              key={item.id}
+              onClick={() => handleSelectOption(item)}
               className="px-4 py-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-b-0"
             >
-              {option}
+              <div className="font-medium text-slate-700">{formatItem(item)}</div>
+              <div className="text-xs text-slate-500 mt-1">
+                {item.orderDate} • {item.processName} • {item.status}
+              </div>
             </div>
           ))}
         </div>
@@ -104,11 +95,11 @@ function FormSelect({
 
       {isOpen && inputValue && filteredOptions.length === 0 && (
         <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg px-4 py-3 text-slate-500">
-          No matching options found. Click + to add "{inputValue}"
+          No matching inventory items found
         </div>
       )}
     </div>
   );
 }
 
-export default FormSelect;
+export default InventorySelect;

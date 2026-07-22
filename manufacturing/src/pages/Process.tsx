@@ -1,13 +1,22 @@
 import PageHeader from "@/components/PageHeader";
 import SectionCard from "@/components/SectionCard";
+import ProductProcessModal from "@/components/ProductProcessModal";
+import InventorySelect from "@/components/InventorySelect";
+import ProcessFlowVisualization from "@/components/ProcessFlowVisualization";
+import FormSelect from "@/components/FormSelect";
+import DynamicProcessStep from "@/components/DynamicProcessStep";
+import api from "@/api/api";
+import { PROCESS_TYPES } from "@/config/processTypes";
 import {
   Factory,
   Save,
   Package,
   Trash2,
-  Archive
+  Archive,
+  Settings,
+  FileText,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 
@@ -15,106 +24,236 @@ import { useNavigate } from "react-router-dom";
 function Process() {
 
   const location = useLocation();
-
   const navigate = useNavigate();
+  const order = location.state?.order;
 
-const order =
-  location.state?.order;
+    const [showProcessModal, setShowProcessModal] = useState(false);
+  const [processNames, setProcessNames] = useState([
+    "Cutting",
+    "Polishing",
+    "Packaging",
+    "Quality Check",
+    "Painting",
+    "Assembly",
+    "Testing",
+  ]);
+  const [partyNames, setPartyNames] = useState([
+    "Party A",
+    "Party B",
+    "Party C",
+    "Party D",
+  ]);
 
-  const [process1Name, setProcess1Name] = useState("Raw Material");
-const [process2Name, setProcess2Name] = useState("Cutting");
-const [process3Name, setProcess3Name] = useState("Drilling");
-const [process4Name, setProcess4Name] = useState("Polish");
-const [process5Name, setProcess5Name] = useState("Packing");
- 
+  // Fetch parties from API
+  const fetchParties = async () => {
+    try {
+      const response = await api.get("/parties");
+      console.log("Parties API:", response.data);
+      if (response.data && response.data.success) {
+        const partyNames = response.data.data.map((item) => item.party_name || "");
+        setPartyNames(partyNames);
+      }
+    } catch (error) {
+      console.error("Error fetching parties:", error);
+    }
+  };
 
-const [process1Input, setProcess1Input] = useState(
-  Number(order?.quantity || 0)
-);
-const [process1Rejection, setProcess1Rejection] = useState("");
-const [process1Extra, setProcess1Extra] = useState("");
+  useEffect(() => {
+    fetchParties();
+    if (order?.order_id_custom) {
+      fetchProcessSequences(order.order_id_custom);
+    }
+  }, [order]);
 
-const process1Output =
-  process1Input -
-  process1Rejection -
-  process1Extra;
+  // Fetch existing process sequences from API and update default processes
+  const fetchProcessSequences = async (orderId: string) => {
+    try {
+      const response = await api.get(`/process-sequences/order/${orderId}`);
+      if (response.data?.success && response.data.data.length > 0) {
+        // Update default processes with saved data
+        const savedSequences = response.data.data;
+        setProductProcessSequence((prev) => 
+          prev.map((step, index) => {
+            const saved = savedSequences[index];
+            if (saved) {
+              return {
+                ...step,
+                partyName: saved.party_name || "",
+                fields: {
+                  ...step.fields,
+                  inputQty: saved.input_qty || step.fields.inputQty,
+                  output: saved.output_qty || step.fields.output,
+                  rejection: saved.rejection || step.fields.rejection,
+                  extra: saved.extra || step.fields.extra,
+                  size: saved.size || step.fields.size,
+                  rate: saved.rate || step.fields.rate,
+                  totalCost: saved.total_cost || step.fields.totalCost,
+                  totalBoxes: saved.total_boxes || step.fields.totalBoxes,
+                  cutting: saved.cutting || step.fields.cutting,
+                }
+              };
+            }
+            return step;
+          })
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching process sequences:", error);
+    }
+  };
 
-  const [size, setSize] = useState("");
+  // Save process sequences to API
+  const saveProcessSequences = async () => {
+    try {
+      // First delete existing sequences for this order
+      if (order?.order_id_custom) {
+        await api.delete(`/process-sequences/order/${order.order_id_custom}`);
+      }
 
-const [process2Rejection, setProcess2Rejection] = useState("");
+      // Then save new sequences
+      for (let i = 0; i < productProcessSequence.length; i++) {
+        const step = productProcessSequence[i];
+        const payload = {
+          order_id: order?.order_id_custom,
+          process_name: step.processName,
+          process_type: step.processType,
+          sequence_number: i + 1,
+          party_id: step.partyName ? parties.find((p: any) => p.party_name === step.partyName)?.id : null,
+          input_qty: step.fields.inputQty || 0,
+          output_qty: step.fields.output || 0,
+          rejection: step.fields.rejection || 0,
+          extra: step.fields.extra || 0,
+          size: step.fields.size || null,
+          rate: step.fields.rate || 0,
+          total_cost: step.fields.totalCost || 0,
+          total_boxes: step.fields.totalBoxes || 0,
+          cutting: step.fields.cutting || 0,
+          status: "completed"
+        };
+        await api.post("/process-sequences", payload);
+      }
 
-const [process2Extra, setProcess2Extra] = useState("");
+      alert("Process sequences saved successfully!");
+    } catch (error) {
+      console.error("Error saving process sequences:", error);
+      alert("Error saving process sequences");
+    }
+  };
 
-const process2Input = process1Output;
+  const [productProcessSequence, setProductProcessSequence] = useState([
+    { id: "process-1", processName: "Raw Material", processType: "basic", partyName: "", fields: { inputQty: 0, rejection: 0, extra: 0, output: 0 } },
+    { id: "process-2", processName: "Cutting", processType: "withSize", partyName: "", fields: { size: "", inputQty: 0, rejection: 0, extra: 0, output: 0 } },
+    { id: "process-3", processName: "Drilling", processType: "cutting", partyName: "", fields: { size: "", inputQty: 0, cutting: 0, hole: 0, rate: 0, rejection: 0, extra: 0, output: 0 } },
+    { id: "process-4", processName: "Polish", processType: "finishing", partyName: "", fields: { size: "", inputQty: 0, finishing: "", rate: 0, totalCost: 0, rejection: 0, extra: 0, output: 0 } },
+    { id: "process-5", processName: "Packing", processType: "packing", partyName: "", fields: { size: "", inputQty: 0, piecesPerBox: 0, totalBoxes: 0 } },
+  ]);
 
-const process2Output =
-  process2Input -
-  process2Rejection -
-  process2Extra;
+  const [inventoryItems, setInventoryItems] = useState([
+    {
+      id: 1,
+      partyName: "Party A",
+      orderName: "ORD-001",
+      orderDate: "2024-05-15",
+      processName: "Cutting",
+      quantity: 15,
+      unit: "Pieces",
+      status: "Available"
+    },
+    {
+      id: 2,
+      partyName: "Party B",
+      orderName: "ORD-002",
+      orderDate: "2024-05-16",
+      processName: "Polishing",
+      quantity: 8,
+      unit: "Pieces",
+      status: "Available"
+    },
+    {
+      id: 3,
+      partyName: "Party C",
+      orderName: "ORD-003",
+      orderDate: "2024-05-17",
+      processName: "Packaging",
+      quantity: 12,
+      unit: "Pieces",
+      status: "In Process"
+    },
+  ]);
 
 
-const [process3Hole, setProcess3Hole] = useState("");
+  // Handle field changes and trigger calculations
+  const handleFieldChange = (stepId: string, fieldKey: string, value: any) => {
+    setProductProcessSequence((prevSequence) => {
+      return prevSequence.map((step) => {
+        if (step.id !== stepId) return step;
+        
+        // If changing processName, update it directly
+        if (fieldKey === "processName") {
+          return { ...step, processName: value };
+        }
+        
+        const updatedFields = { ...step.fields, [fieldKey]: value };
+        const processConfig = PROCESS_TYPES[step.processType as keyof typeof PROCESS_TYPES];
+        
+        // Calculate output and other derived fields
+        if (processConfig) {
+          // Calculate cutting for cutting type
+          if (step.processType === "cutting" && updatedFields.size > 0) {
+            updatedFields.cutting = updatedFields.inputQty / updatedFields.size;
+          }
+          
+          // Calculate total cost for finishing type
+          if (step.processType === "finishing") {
+            updatedFields.totalCost = updatedFields.inputQty * updatedFields.rate;
+          }
+          
+          // Calculate total boxes for packing type
+          if (step.processType === "packing" && updatedFields.piecesPerBox > 0) {
+            updatedFields.totalBoxes = updatedFields.inputQty / updatedFields.piecesPerBox;
+          }
+          
+          // Calculate output for all types except packing
+          if (step.processType !== "packing") {
+            updatedFields.output = updatedFields.inputQty - (updatedFields.rejection || 0) - (updatedFields.extra || 0);
+          }
+        }
+        
+        return { ...step, fields: updatedFields };
+      });
+    });
+  };
 
-const [process3Rejection, setProcess3Rejection] = useState("");
+  // Handle party change
+  const handlePartyChange = (stepId: string, partyName: string) => {
+    setProductProcessSequence((prevSequence) =>
+      prevSequence.map((step) => (step.id === stepId ? { ...step, partyName } : step))
+    );
+  };
 
-const [process3Extra, setProcess3Extra] = useState("");
-const [process3Rate, setProcess3Rate] = useState("");
+  // Handle inventory selection
+  const handleInventorySelect = (stepId: string, item: any) => {
+    handleFieldChange(stepId, "inputQty", item.quantity);
+  };
 
-const process3Input = process2Output;
+  // Calculate totals across all processes
+  const calculateTotals = () => {
+    let totalExtra = 0;
+    let totalRejection = 0;
+    let finalOutput = 0;
 
-const process3Cutting =
-  Number(size) > 0
-    ? process3Input / Number(size)
-    : 0;
-const process3Output =
-  process3Input -
-  process3Rejection -
-  process3Extra;
+    productProcessSequence.forEach((step) => {
+      totalExtra += step.fields.extra || 0;
+      totalRejection += step.fields.rejection || 0;
+      if (step.processType === "packing") {
+        finalOutput = step.fields.totalBoxes || 0;
+      }
+    });
 
+    return { totalExtra, totalRejection, finalOutput };
+  };
 
-  const [process4Finishing, setProcess4Finishing] = useState("");
-
-const [process4Rate, setProcess4Rate] =
-  useState("");
-
-const [process4Rejection, setProcess4Rejection] =
-  useState("");
-
-const [process4Extra, setProcess4Extra] =
-  useState("");
-
-const process4Input = process3Output;
-
-const process4TotalCost =
-  process4Input * process4Rate;
-
-const process4Output =
-  process4Input -
-  process4Rejection -
-  process4Extra;
-
-  const [piecesPerBox, setPiecesPerBox] =
-  useState("");
-
-const process5Input =
-  process4Output;
-
-const totalBoxes =
-  piecesPerBox > 0
-    ? process5Input / piecesPerBox
-    : 0;
-
-    const totalExtra =
-  process1Extra +
-  process2Extra +
-  process3Extra +
-  process4Extra;
-
-const totalRejection =
-  process1Rejection +
-  process2Rejection +
-  process3Rejection +
-  process4Rejection;
+  const { totalExtra, totalRejection, finalOutput } = calculateTotals();
 
   return (
     <>
@@ -208,17 +347,26 @@ const totalRejection =
         Product Name (From Inventory)
       </label>
 
-      <input
-  value={order?.product_name || ""}
-  readOnly
-  className="
-    w-full
-    border
-    rounded-xl
-    px-4 py-3
-    bg-slate-50
-  "
-/>
+      <div className="flex gap-2">
+        <input
+    value={order?.product_name || ""}
+    readOnly
+    className="
+      flex-1
+      border
+      rounded-xl
+      px-4 py-3
+      bg-slate-50
+    "
+  />
+        <button
+      onClick={() => setShowProcessModal(true)}
+      className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700"
+      title="Configure Process Sequence"
+    >
+      <Settings size={18} />
+    </button>
+      </div>
     </div>
 
     <div>
@@ -264,6 +412,33 @@ const totalRejection =
 </button>
 
       <button
+        onClick={() => {
+          console.log("Generating report with data:", {
+            order,
+            processSequence: productProcessSequence,
+            inventoryItems,
+          });
+          navigate(`/report/${order?.order_id_custom || order?.id || 'new'}`, {
+            state: {
+              order,
+              processSequence: productProcessSequence,
+              inventoryItems,
+            },
+          });
+        }}
+        className="
+          px-6 py-3
+          bg-violet-600
+          text-white
+          rounded-xl
+          flex items-center gap-2
+        "
+      >
+        <FileText size={18} />
+        Generate Report
+      </button>
+
+      <button
         className="
           px-6 py-3
           border
@@ -284,999 +459,23 @@ const totalRejection =
 </h2>
 
 <SectionCard>
-
-  <div className="flex gap-6">
-
-    {/* Left Timeline */}
-
-    <div className="flex flex-col items-center">
-
-      <div
-        className="
-          w-12 h-12
-          rounded-full
-          bg-green-500
-          text-white
-          flex items-center justify-center
-          font-bold text-xl
-        "
-      >
-        1
-      </div>
-
-      <div className="w-[2px] h-32 bg-slate-300 mt-2"></div>
-
+  {productProcessSequence.map((step, index) => (
+    <div key={step.id}>
+      <DynamicProcessStep
+        step={step}
+        index={index}
+        totalSteps={productProcessSequence.length}
+        partyNames={partyNames}
+        inventoryItems={inventoryItems}
+        onFieldChange={handleFieldChange}
+        onPartyChange={handlePartyChange}
+        onInventorySelect={handleInventorySelect}
+      />
+      {index < productProcessSequence.length - 1 && (
+        <div className="border-t border-slate-200 my-8"></div>
+      )}
     </div>
-
-    {/* Process Content */}
-
-    <div className="flex-1">
-
-      <span
-        className="
-          inline-block
-          px-3 py-1
-          rounded-md
-          text-xs font-semibold
-          bg-green-500
-          text-white
-          mb-4
-        "
-      >
-        PROCESS 1
-      </span>
-
-      <div className="grid grid-cols-7 gap-6 items-end">
-
-        {/* Process Name */}
-
-        <div>
-
-          <label className="block text-sm font-medium mb-2">
-            Process Name
-          </label>
-
-          <input
-  type="text"
-  value={process1Name}
-  onChange={(e) => setProcess1Name(e.target.value)}
-  className="w-full border rounded-xl px-4 py-3"
-/>
-
-        </div>
-
-        {/* Party Name */}
-
-        <div>
-
-          <label className="block text-sm font-medium mb-2">
-            Party Name
-          </label>
-
-          <input
-  value={order?.client_name || ""}
-  readOnly
-  className="
-    w-full
-    border
-    rounded-xl
-    px-4 py-3
-    bg-slate-50
-  "
-/>
-
-        </div>
-
-        {/* Unit */}
-
-        <div>
-
-          <label className="block text-sm font-medium mb-2">
-            Unit
-          </label>
-
-          <div className="flex gap-4 mt-3">
-
-            <label className="flex items-center gap-2">
-              <input type="radio" />
-              KG
-            </label>
-
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                defaultChecked
-              />
-              Pieces
-            </label>
-
-          </div>
-
-        </div>
-
-        {/* Input Qty */}
-
-        <div>
-
-          <label className="block text-sm font-medium mb-2">
-            Input Qty
-          </label>
-
-          <input
-  type="number"
-  value={process1Input}
-  onChange={(e) =>
-    setProcess1Input(Number(e.target.value))
-  }
-  className="
-    w-full
-    border
-    border-blue-300
-    rounded-xl
-    px-4 py-3
-  "
-/>
-
-        </div>
-
-        {/* Rejection */}
-
-        <div>
-
-          <label className="block text-sm font-medium mb-2">
-            Rejection
-          </label>
-
-          <input
-  type="number"
-  value={process1Rejection}
-  onChange={(e) =>
-    setProcess1Rejection(Number(e.target.value))
-  }
-  className="
-    w-full
-    border
-    border-red-300
-    rounded-xl
-    px-4 py-3
-    bg-red-50
-  "
-/>
-
-        </div>
-
-        {/* Extra */}
-
-        <div>
-
-          <label className="block text-sm font-medium mb-2">
-            Extra (To Inventory)
-          </label>
-
-          <input
-  type="number"
-  value={process1Extra}
-  onChange={(e) =>
-    setProcess1Extra(Number(e.target.value))
-  }
-  className="
-    w-full
-    border
-    border-orange-300
-    rounded-xl
-    px-4 py-3
-    bg-orange-50
-  "
-/>
-
-        </div>
-
-        {/* Output */}
-
-        <div>
-
-          <label className="block text-sm font-medium mb-2 text-green-600">
-            Output To Next Process
-          </label>
-
-          <input
-  type="number"
-  value={process1Output}
-  readOnly
-  className="
-    w-full
-    border
-    border-green-300
-    rounded-xl
-    px-4 py-3
-    bg-green-50
-  "
-/>
-
-        </div>
-
-      </div>
-
-    </div>
-
-  </div>
-
-  <div className="border-t border-slate-200 my-8"></div>
-
-  
-
-  <div className="flex gap-6">
-
-    {/* Left Timeline */}
-
-    <div className="flex flex-col items-center">
-
-      <div
-        className="
-          w-12 h-12
-          rounded-full
-          bg-blue-500
-          text-white
-          flex items-center justify-center
-          font-bold text-xl
-        "
-      >
-        2
-      </div>
-
-      <div className="w-[2px] h-32 bg-slate-300 mt-2"></div>
-
-    </div>
-
-    {/* Content */}
-
-    <div className="flex-1">
-
-      <span
-        className="
-          inline-block
-          px-3 py-1
-          rounded-md
-          text-xs font-semibold
-          bg-blue-500
-          text-white
-          mb-4
-        "
-      >
-        PROCESS 2
-      </span>
-
-      <div className="grid grid-cols-7 gap-6 items-end">
-
-        <div>
-          <label className="block text-sm mb-2">
-            Process Name
-          </label>
-
-          <input
-            value={process2Name}
-onChange={(e) => setProcess2Name(e.target.value)}
-            className="w-full border rounded-xl px-4 py-3"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm mb-2">
-            Party Name
-          </label>
-
-          <input
-  value={order?.client_name || ""}
-  readOnly
-  className="
-    w-full
-    border
-    rounded-xl
-    px-4 py-3
-    bg-slate-50
-  "
-/>
-        </div>
-
-        <div>
-          <label className="block text-sm mb-2">
-            Size
-          </label>
-
-          <input
-  value={size}
-  onChange={(e) => setSize(e.target.value)}
-  placeholder="Enter Size"
-  className="w-full border rounded-xl px-4 py-3"
-/>
-        </div>
-
-        <div>
-          <label className="block text-sm mb-2">
-            Pieces (Input)
-          </label>
-
-          <input
-  value={process2Input}
-  readOnly
-  className="
-    w-full
-    border
-    border-blue-300
-    rounded-xl
-    px-4 py-3
-    bg-blue-50
-  "
-/>
-        </div>
-
-        <div>
-          <label className="block text-sm mb-2">
-            Rejection
-          </label>
-
-          <input
-  type="number"
-  value={process2Rejection}
-  onChange={(e) =>
-    setProcess2Rejection(Number(e.target.value))
-  }
-  className="
-    w-full
-    border
-    border-red-300
-    bg-red-50
-    rounded-xl
-    px-4 py-3
-  "
-/>
-        </div>
-
-        <div>
-          <label className="block text-sm mb-2">
-            Extra
-          </label>
-
-          <input
-  type="number"
-  value={process2Extra}
-  onChange={(e) =>
-    setProcess2Extra(Number(e.target.value))
-  }
-  className="
-    w-full
-    border
-    border-orange-300
-    bg-orange-50
-    rounded-xl
-    px-4 py-3
-  "
-/>
-        </div>
-
-        <div>
-          <label className="block text-sm mb-2 text-green-600">
-            Output To Next Process
-          </label>
-
-          <input
-  value={process2Output}
-  readOnly
-  className="
-    w-full
-    border
-    border-green-300
-    bg-green-50
-    rounded-xl
-    px-4 py-3
-  "
-/>
-        </div>
-
-      </div>
-
-    </div>
-
-  </div>
-
-  <div className="border-t border-slate-200 my-8"></div>
-
-<div className="flex gap-6">
-
-  {/* Timeline */}
-
-  <div className="flex flex-col items-center">
-
-    <div
-      className="
-        w-12 h-12
-        rounded-full
-        bg-violet-500
-        text-white
-        flex items-center justify-center
-        font-bold text-xl
-      "
-    >
-      3
-    </div>
-
-    <div className="w-[2px] h-32 bg-slate-300 mt-2"></div>
-
-  </div>
-
-  {/* Process 3 */}
-
-  <div className="flex-1">
-
-    <span
-      className="
-        inline-block
-        px-3 py-1
-        rounded-md
-        text-xs font-semibold
-        bg-violet-500
-        text-white
-        mb-4
-      "
-    >
-      PROCESS 3
-    </span>
-
-    <div className="grid grid-cols-10 gap-4 items-end">
-
-      {/* Process Name */}
-
-      <div>
-        <label className="block text-sm mb-2">
-          Process Name
-        </label>
-
-       <input
-  value={process3Name}
-  onChange={(e) => setProcess3Name(e.target.value)}
-  className="w-full border rounded-xl px-4 py-3"
-/>
-      </div>
-
-      {/* Party */}
-
-      <div>
-        <label className="block text-sm mb-2">
-          Party Name
-        </label>
-
-        <input
-  value={order?.client_name || ""}
-  readOnly
-  className="
-    w-full
-    border
-    rounded-xl
-    px-4 py-3
-    bg-slate-50
-  "
-/>
-      </div>
-
-      {/* Size */}
-
-      <div>
-        <label className="block text-sm mb-2">
-          Size
-        </label>
-
-        <input
-  value={size}
-  readOnly
-  className="w-full border rounded-xl px-4 py-3 bg-slate-50"
-/>
-      </div>
-
-      {/* Pieces */}
-
-      <div>
-        <label className="block text-sm mb-2">
-          Pieces (Input)
-        </label>
-
-        <input
-          value={process3Input}
-          readOnly
-          className="
-            w-full
-            border
-            border-blue-300
-            rounded-xl
-            px-4 py-3
-          "
-        />
-      </div>
-
-      {/* Cutting Auto */}
-
-      <div>
-        <label className="block text-sm mb-2">
-          Cutting (Auto)
-        </label>
-
-        <input
-          value={process3Cutting}
-          readOnly
-          className="w-full border rounded-xl px-4 py-3"
-        />
-      </div>
-
-      {/* Hole */}
-
-      <div>
-        <label className="block text-sm mb-2">
-          Hole (Per Pc)
-        </label>
-
-        <input
-          value={process3Hole}
-          onChange={(e) =>
-            setProcess3Hole(Number(e.target.value))
-          }
-          className="w-full border rounded-xl px-4 py-3"
-        />
-      </div>
-
-      {/* Rate */}
-
-      <div>
-        <label className="block text-sm mb-2">
-          Rate (Per Cutting)
-        </label>
-
-       <input
-  type="number"
-  value={process3Rate}
-  onChange={(e) =>
-    setProcess3Rate(Number(e.target.value))
-  }
-  className="w-full border rounded-xl px-4 py-3"
-/>
-      </div>
-
-      {/* Rejection */}
-
-      <div>
-        <label className="block text-sm mb-2">
-          Rejection
-        </label>
-
-        <input
-          value={process3Rejection}
-onChange={(e) =>
-  setProcess3Rejection(Number(e.target.value))
-}
-          className="
-            w-full
-            border
-            border-red-300
-            bg-red-50
-            rounded-xl
-            px-4 py-3
-          "
-        />
-      </div>
-
-      {/* Extra */}
-
-      <div>
-        <label className="block text-sm mb-2">
-          Extra (Inventory)
-        </label>
-
-        <input
-          value={process3Extra}
-onChange={(e) =>
-  setProcess3Extra(Number(e.target.value))
-}
-          className="
-            w-full
-            border
-            border-orange-300
-            bg-orange-50
-            rounded-xl
-            px-4 py-3
-          "
-        />
-      </div>
-
-      {/* Output */}
-
-<div>
-  <label className="block text-sm mb-2 text-green-600">
-    Output To Next Process
-  </label>
-
-  <input
-    value={process3Output}
-    readOnly
-    className="
-      w-full
-      border
-      border-green-300
-      bg-green-50
-      rounded-xl
-      px-4 py-3
-    "
-  />
-</div>
-
-    </div>
-  </div>
-
-</div>
-
-<div className="border-t border-slate-200 my-8"></div>
-
-<div className="flex gap-6">
-
-  {/* Timeline */}
-
-  <div className="flex flex-col items-center">
-
-    <div
-      className="
-        w-12 h-12
-        rounded-full
-        bg-pink-500
-        text-white
-        flex items-center justify-center
-        font-bold text-xl
-      "
-    >
-      4
-    </div>
-
-    <div className="w-[2px] h-32 bg-slate-300 mt-2"></div>
-
-  </div>
-
-  {/* Process 4 */}
-
-  <div className="flex-1">
-
-    <span
-      className="
-        inline-block
-        px-3 py-1
-        rounded-md
-        text-xs font-semibold
-        bg-pink-500
-        text-white
-        mb-4
-      "
-    >
-      PROCESS 4
-    </span>
-
-    <div className="grid grid-cols-10 gap-4 items-end">
-
-      <div>
-        <label className="block text-sm mb-2">
-          Process Name
-        </label>
-
-        <input
-  value={process4Name}
-  onChange={(e) => setProcess4Name(e.target.value)}
-  className="w-full border rounded-xl px-4 py-3"
-/>
-      </div>
-
-      <div>
-        <label className="block text-sm mb-2">
-          Party Name
-        </label>
-
-        <input
-  value={order?.client_name || ""}
-  readOnly
-  className="
-    w-full
-    border
-    rounded-xl
-    px-4 py-3
-    bg-slate-50
-  "
-/>
-      </div>
-
-      <div>
-        <label className="block text-sm mb-2">
-          Size
-        </label>
-
-        <input
-  value={size}
-  readOnly
-  className="w-full border rounded-xl px-4 py-3 bg-slate-50"
-/>
-      </div>
-
-      <div>
-        <label className="block text-sm mb-2">
-          Pieces (Input)
-        </label>
-
-        <input
-          value={process4Input}
-          readOnly
-          className="
-            w-full
-            border
-            border-blue-300
-            rounded-xl
-            px-4 py-3
-          "
-        />
-      </div>
-
-      <div>
-  <label className="block text-sm mb-2">
-    Finishing
-  </label>
-
- <input
-  value={process4Finishing}
-  onChange={(e) =>
-    setProcess4Finishing(e.target.value)
-  }
-  placeholder="Enter Finishing"
-  className="w-full border rounded-xl px-4 py-3"
-/>
-
-  
-</div>
-
-      <div>
-        <label className="block text-sm mb-2">
-          Rate / Pc
-        </label>
-
-        <input
-          value={process4Rate}
-onChange={(e) =>
-  setProcess4Rate(Number(e.target.value))
-}
-          className="w-full border rounded-xl px-4 py-3"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm mb-2">
-          Total Cost
-        </label>
-
-        <input
-          value={process4TotalCost}
-          readOnly
-          className="w-full border rounded-xl px-4 py-3"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm mb-2">
-          Rejection
-        </label>
-
-        <input
-          value={process4Rejection}
-onChange={(e) =>
-  setProcess4Rejection(Number(e.target.value))
-}
-          className="
-            w-full
-            border
-            border-red-300
-            bg-red-50
-            rounded-xl
-            px-4 py-3
-          "
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm mb-2">
-          Extra (Inventory)
-        </label>
-
-        <input
-          value={process4Extra}
-onChange={(e) =>
-  setProcess4Extra(Number(e.target.value))
-}
-          className="
-            w-full
-            border
-            border-orange-300
-            bg-orange-50
-            rounded-xl
-            px-4 py-3
-          "
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm mb-2 text-green-600">
-          Output To Next Process
-        </label>
-
-        <input
-          value={process4Output}
-          readOnly
-          className="
-            w-full
-            border
-            border-green-300
-            bg-green-50
-            rounded-xl
-            px-4 py-3
-          "
-        />
-      </div>
-
-    </div>
-
-  </div>
-
-</div>
-
-<div className="border-t border-slate-200 my-8"></div>
-
-<div className="flex gap-6">
-
-  <div className="flex flex-col items-center">
-
-    <div
-      className="
-        w-12 h-12
-        rounded-full
-        bg-indigo-500
-        text-white
-        flex items-center justify-center
-        font-bold text-xl
-      "
-    >
-      5
-    </div>
-
-  </div>
-
-  <div className="flex-1">
-
-    <span
-      className="
-        inline-block
-        px-3 py-1
-        rounded-md
-        text-xs font-semibold
-        bg-indigo-500
-        text-white
-        mb-4
-      "
-    >
-      PROCESS 5
-    </span>
-
-    <div className="grid grid-cols-8 gap-4 items-end">
-
-  <div>
-    <label className="block text-sm mb-2">
-      Process Name
-    </label>
-
-    <input
-  value={process5Name}
-  onChange={(e) => setProcess5Name(e.target.value)}
-  className="w-full border rounded-xl px-4 py-3"
-/>
-  </div>
-
-  <div>
-    <label className="block text-sm mb-2">
-      Party Name
-    </label>
-
-    <input
-  value={order?.client_name || ""}
-  readOnly
-  className="
-    w-full
-    border
-    rounded-xl
-    px-4 py-3
-    bg-slate-50
-  "
-/>
-  </div>
-
-  <div>
-    <label className="block text-sm mb-2">
-      Size
-    </label>
-
-    <input
-  value={size}
-  readOnly
-  className="w-full border rounded-xl px-4 py-3 bg-slate-50"
-/>
-  </div>
-
-  <div>
-    <label className="block text-sm mb-2">
-      Input Qty
-    </label>
-
-    <input
-      value={process5Input}
-      readOnly
-      className="
-        w-full
-        border
-        border-blue-300
-        bg-blue-50
-        rounded-xl
-        px-4 py-3
-      "
-    />
-  </div>
-
-  <div>
-    <label className="block text-sm mb-2">
-      Pieces Per Box
-    </label>
-
-    <input
-      value={piecesPerBox}
-onChange={(e) =>
-  setPiecesPerBox(Number(e.target.value))
-}
-      className="
-        w-full
-        border
-        rounded-xl
-        px-4 py-3
-      "
-    />
-  </div>
-
-  <div className="flex justify-center items-center text-3xl font-bold">
-    =
-  </div>
-
-  <div className="col-span-2">
-    <label className="block text-sm mb-2 text-green-600 font-semibold">
-      Total Boxes
-    </label>
-
-    <input
-      value={totalBoxes}
-      readOnly
-      className="
-        w-full
-        border
-        border-green-300
-        bg-green-50
-        rounded-xl
-        px-4 py-3
-        font-bold
-        text-green-700
-      "
-    />
-  </div>
-
-</div>
-
-  </div>
-
-</div>
-
-
+  ))}
 </SectionCard>
 
 <SectionCard>
@@ -1298,6 +497,28 @@ onChange={(e) =>
          {totalExtra}  <span className="text-lg font-normal">Pcs</span>
         </h2>
       </div>
+
+      {Number(totalExtra) > 0 && (
+        <button
+          onClick={() => {
+            const newItem = {
+              id: Date.now(),
+              partyName: order?.client_name || "Unknown",
+              orderName: order?.order_id_custom || "Unknown",
+              orderDate: new Date().toISOString().split('T')[0],
+              processName: "Process Surplus",
+              quantity: totalExtra,
+              unit: "Pieces",
+              status: "Available"
+            };
+            setInventoryItems([...inventoryItems, newItem]);
+            alert(`${totalExtra} items sent to inventory`);
+          }}
+          className="px-4 py-2 bg-green-600 text-white rounded-xl text-sm hover:bg-green-700"
+        >
+          Send to Inventory
+        </button>
+      )}
 
     </div>
 
@@ -1331,7 +552,7 @@ onChange={(e) =>
         </p>
 
         <h2 className="text-3xl font-bold">
-          {totalBoxes}<span className="text-lg font-normal">Box</span>
+          {finalOutput}<span className="text-lg font-normal">Box</span>
         </h2>
       </div>
 
@@ -1340,6 +561,126 @@ onChange={(e) =>
   </div>
 
 </SectionCard>
+
+<SectionCard>
+  <h2 className="text-xl font-semibold mb-6">
+    Available Inventory
+  </h2>
+
+  <div className="bg-slate-50 rounded-xl px-4 py-4">
+    <div className="grid grid-cols-6 gap-4 text-sm font-semibold text-slate-600">
+      <div>Party Name</div>
+      <div>Order Name</div>
+      <div>Order Date</div>
+      <div>Process Name</div>
+      <div>Quantity</div>
+      <div>Status</div>
+    </div>
+
+    {inventoryItems.length === 0 ? (
+      <div className="py-8 text-center text-slate-500">
+        No inventory items available
+      </div>
+    ) : (
+      inventoryItems.map((item) => (
+        <div
+          key={item.id}
+          className="grid grid-cols-6 gap-4 py-4 px-3 border-b border-slate-100 items-center hover:bg-slate-50 transition"
+        >
+          <div className="font-medium">{item.partyName}</div>
+          <div>{item.orderName}</div>
+          <div>{item.orderDate}</div>
+          <div>{item.processName}</div>
+          <div>
+            {item.quantity} {item.unit}
+          </div>
+          <div>
+            <span
+              className={`px-2 py-1 rounded-full text-xs font-medium ${
+                item.status === "Available"
+                  ? "bg-green-100 text-green-700"
+                  : item.status === "In Process"
+                  ? "bg-blue-100 text-blue-700"
+                  : "bg-gray-100 text-gray-700"
+              }`}
+            >
+              {item.status}
+            </span>
+          </div>
+        </div>
+      ))
+    )}
+  </div>
+</SectionCard>
+
+<SectionCard>
+  <h2 className="text-xl font-semibold mb-6">
+    Process Flow with Inventory
+  </h2>
+  <ProcessFlowVisualization
+    processSequence={productProcessSequence}
+    inventoryItems={inventoryItems}
+  />
+</SectionCard>
+
+      
+      <ProductProcessModal
+        isOpen={showProcessModal}
+        onClose={() => setShowProcessModal(false)}
+        productName={order?.product_name || "Product"}
+        onSave={(sequence) => {
+          // Link process outputs to next process inputs
+          const updatedSequence = sequence.map((step, index) => {
+            if (index > 0) {
+              const prevStep = sequence[index - 1];
+              const prevConfig = PROCESS_TYPES[prevStep.processType as keyof typeof PROCESS_TYPES];
+              let inputValue = 0;
+              
+              if (prevStep.processType === "packing") {
+                inputValue = prevStep.fields.totalBoxes || 0;
+              } else {
+                inputValue = prevStep.fields.output || 0;
+              }
+              
+              return {
+                ...step,
+                fields: {
+                  ...step.fields,
+                  inputQty: inputValue,
+                },
+              };
+            }
+            return step;
+          });
+          setProductProcessSequence(updatedSequence);
+          
+          // Deduct inventory items that are used
+          sequence.forEach((step) => {
+            if (step.inventoryItemId && step.inventoryQuantity) {
+              setInventoryItems((prevItems) =>
+                prevItems.map((item) =>
+                  item.id === step.inventoryItemId
+                    ? {
+                        ...item,
+                        quantity: Math.max(0, item.quantity - step.inventoryQuantity),
+                        status: item.quantity - step.inventoryQuantity <= 0 ? "Used" : "In Process",
+                      }
+                    : item
+                )
+              );
+            }
+          });
+        }}
+        initialSequence={productProcessSequence}
+        availableProcesses={processNames}
+        availableParties={partyNames}
+        availableInventory={inventoryItems}
+        onAddProcess={(newProcess) => {
+          if (!processNames.includes(newProcess)) {
+            setProcessNames([...processNames, newProcess]);
+          }
+        }}
+      />
 
       
     </>

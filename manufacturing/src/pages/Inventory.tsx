@@ -13,6 +13,8 @@ import {
   AlertCircle,
   PackageX,
   Pencil,
+  ArrowUpRight,
+  ArrowDownLeft,
 } from "lucide-react";
 
 
@@ -69,6 +71,54 @@ const [currentPage, setCurrentPage] =
   useState(1);
 
 const [materials, setMaterials] = useState([]);
+
+const [processInventory, setProcessInventory] = useState([
+  {
+    id: 1,
+    partyName: "Party A",
+    orderName: "ORD-001",
+    orderDate: "2024-05-15",
+    processName: "Cutting",
+    quantity: 15,
+    unit: "Pieces",
+    status: "Available"
+  },
+  {
+    id: 2,
+    partyName: "Party B",
+    orderName: "ORD-002",
+    orderDate: "2024-05-16",
+    processName: "Polishing",
+    quantity: 8,
+    unit: "Pieces",
+    status: "Available"
+  },
+]);
+
+const [inventoryHistory, setInventoryHistory] = useState([
+  {
+    id: 1,
+    itemId: 1,
+    action: "Added",
+    quantity: 15,
+    orderName: "ORD-001",
+    partyName: "Party A",
+    processName: "Cutting",
+    timestamp: "2024-05-15 10:30",
+    reason: "Process surplus"
+  },
+  {
+    id: 2,
+    itemId: 2,
+    action: "Used",
+    quantity: 5,
+    orderName: "ORD-002",
+    partyName: "Party B",
+    processName: "Polishing",
+    timestamp: "2024-05-16 14:20",
+    reason: "Process allocation"
+  },
+]);
 
   useEffect(() => {
   fetchMaterials();
@@ -548,6 +598,132 @@ console.log("Current Material Form:", materialForm);
 </div>
 
 </div>
+
+</SectionCard>
+
+<SectionCard>
+
+  <h2 className="text-xl font-semibold mb-6">
+    Process Extra Items
+  </h2>
+
+  <div className="bg-slate-50 rounded-xl px-4 py-4">
+
+    <div className="grid grid-cols-7 gap-4 text-sm font-semibold text-slate-600">
+
+      <div>Party Name</div>
+      <div>Order Name</div>
+      <div>Order Date</div>
+      <div>Process Name</div>
+      <div>Quantity</div>
+      <div>Status</div>
+      <div>Action</div>
+
+    </div>
+
+    {processInventory.map((item) => (
+      <div
+        key={item.id}
+        className="grid grid-cols-7 gap-4 py-4 px-3 border-b border-slate-100 items-center hover:bg-slate-50 transition"
+      >
+
+        <div className="font-medium">{item.partyName}</div>
+
+        <div>{item.orderName}</div>
+
+        <div>{item.orderDate}</div>
+
+        <div>{item.processName}</div>
+
+        <div>
+          {item.quantity} {item.unit}
+        </div>
+
+        <div>
+          <StatusBadge
+            text={item.status}
+            color="green"
+          />
+        </div>
+
+        <div>
+          <button
+            className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center hover:bg-blue-200 text-blue-600"
+            title="Use in Process"
+          >
+            <ArrowDownLeft size={16} />
+          </button>
+        </div>
+
+      </div>
+    ))}
+
+  </div>
+
+</SectionCard>
+
+<SectionCard>
+
+  <h2 className="text-xl font-semibold mb-6">
+    Inventory History / Audit Trail
+  </h2>
+
+  <div className="bg-slate-50 rounded-xl px-4 py-4">
+
+    <div className="grid grid-cols-7 gap-4 text-sm font-semibold text-slate-600">
+
+      <div>Timestamp</div>
+      <div>Action</div>
+      <div>Order Name</div>
+      <div>Party Name</div>
+      <div>Process</div>
+      <div>Quantity</div>
+      <div>Reason</div>
+
+    </div>
+
+    {inventoryHistory.length === 0 ? (
+      <div className="py-8 text-center text-slate-500">
+        No inventory history available
+      </div>
+    ) : (
+      inventoryHistory.map((entry) => (
+        <div
+          key={entry.id}
+          className="grid grid-cols-7 gap-4 py-4 px-3 border-b border-slate-100 items-center hover:bg-slate-50 transition"
+        >
+
+          <div className="text-sm text-slate-600">{entry.timestamp}</div>
+
+          <div>
+            <span
+              className={`px-2 py-1 rounded-full text-xs font-medium ${
+                entry.action === "Added"
+                  ? "bg-green-100 text-green-700"
+                  : entry.action === "Used"
+                  ? "bg-blue-100 text-blue-700"
+                  : "bg-orange-100 text-orange-700"
+              }`}
+            >
+              {entry.action}
+            </span>
+          </div>
+
+          <div>{entry.orderName}</div>
+
+          <div className="font-medium">{entry.partyName}</div>
+
+          <div>{entry.processName}</div>
+
+          <div className="font-semibold">{entry.quantity}</div>
+
+          <div className="text-sm text-slate-500">{entry.reason}</div>
+
+        </div>
+      ))
+    )}
+
+  </div>
 
 </SectionCard>
 

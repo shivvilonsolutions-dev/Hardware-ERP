@@ -427,8 +427,9 @@ app.delete('/api/process-sequences/order/:order_id', async (req, res) => {
 });
 
 // Start server
-initDB().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  initDB().catch(err => {
+    console.error('Error initializing database:', err);
   });
 });

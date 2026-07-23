@@ -424,9 +424,16 @@ app.delete('/api/process-sequences/order/:order_id', async (req, res) => {
 });
 
 // Start server
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
-  initDB().catch(err => {
-    console.error('Error initializing database:', err);
-  });
-});
+async function startServer() {
+  try {
+    await initDB();
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  } catch (err) {
+    console.error('Error starting server:', err);
+    process.exit(1);
+  }
+}
+
+startServer();

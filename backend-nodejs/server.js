@@ -87,6 +87,9 @@ async function initDB() {
         rejection DECIMAL(10,2) DEFAULT 0,
         extra DECIMAL(10,2) DEFAULT 0,
         size VARCHAR(255),
+        size_unit VARCHAR(50) DEFAULT 'Pieces',
+        kg DECIMAL(10,2) DEFAULT 0,
+        pieces DECIMAL(10,2) DEFAULT 0,
         rate DECIMAL(10,2) DEFAULT 0,
         total_cost DECIMAL(10,2) DEFAULT 0,
         total_boxes DECIMAL(10,2) DEFAULT 0,
@@ -370,11 +373,11 @@ app.get('/api/process-sequences/:id', async (req, res) => {
 
 app.post('/api/process-sequences', async (req, res) => {
   try {
-    const { order_id, process_name, process_type, sequence_number, party_id, input_qty, output_qty, rejection, extra, size, rate, total_cost, total_boxes, cutting, hole, finishing, pieces_per_box, status } = req.body;
+    const { order_id, process_name, process_type, sequence_number, party_id, input_qty, output_qty, rejection, extra, size, size_unit, kg, pieces, rate, total_cost, total_boxes, cutting, hole, finishing, pieces_per_box, status } = req.body;
     
     const result = await pool.query(
-      'INSERT INTO process_sequences (order_id, process_name, process_type, sequence_number, party_id, input_qty, output_qty, rejection, extra, size, rate, total_cost, total_boxes, cutting, hole, finishing, pieces_per_box, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *',
-      [order_id, process_name, process_type, sequence_number, party_id, input_qty || 0, output_qty || 0, rejection || 0, extra || 0, size, rate || 0, total_cost || 0, total_boxes || 0, cutting || 0, hole || 0, finishing, pieces_per_box || 0, status || 'pending']
+      'INSERT INTO process_sequences (order_id, process_name, process_type, sequence_number, party_id, input_qty, output_qty, rejection, extra, size, size_unit, kg, pieces, rate, total_cost, total_boxes, cutting, hole, finishing, pieces_per_box, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING *',
+      [order_id, process_name, process_type, sequence_number, party_id, input_qty || 0, output_qty || 0, rejection || 0, extra || 0, size, size_unit || 'Pieces', kg || 0, pieces || 0, rate || 0, total_cost || 0, total_boxes || 0, cutting || 0, hole || 0, finishing, pieces_per_box || 0, status || 'pending']
     );
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
@@ -385,10 +388,10 @@ app.post('/api/process-sequences', async (req, res) => {
 
 app.put('/api/process-sequences/:id', async (req, res) => {
   try {
-    const { order_id, process_name, process_type, sequence_number, party_id, input_qty, output_qty, rejection, extra, size, rate, total_cost, total_boxes, cutting, hole, finishing, pieces_per_box, status } = req.body;
+    const { order_id, process_name, process_type, sequence_number, party_id, input_qty, output_qty, rejection, extra, size, size_unit, kg, pieces, rate, total_cost, total_boxes, cutting, hole, finishing, pieces_per_box, status } = req.body;
     const result = await pool.query(
-      'UPDATE process_sequences SET order_id = COALESCE($1, order_id), process_name = COALESCE($2, process_name), process_type = COALESCE($3, process_type), sequence_number = COALESCE($4, sequence_number), party_id = COALESCE($5, party_id), input_qty = COALESCE($6, input_qty), output_qty = COALESCE($7, output_qty), rejection = COALESCE($8, rejection), extra = COALESCE($9, extra), size = COALESCE($10, size), rate = COALESCE($11, rate), total_cost = COALESCE($12, total_cost), total_boxes = COALESCE($13, total_boxes), cutting = COALESCE($14, cutting), hole = COALESCE($15, hole), finishing = COALESCE($16, finishing), pieces_per_box = COALESCE($17, pieces_per_box), status = COALESCE($18, status) WHERE id = $19 RETURNING *',
-      [order_id, process_name, process_type, sequence_number, party_id, input_qty, output_qty, rejection, extra, size, rate, total_cost, total_boxes, cutting, hole, finishing, pieces_per_box, status, req.params.id]
+      'UPDATE process_sequences SET order_id = COALESCE($1, order_id), process_name = COALESCE($2, process_name), process_type = COALESCE($3, process_type), sequence_number = COALESCE($4, sequence_number), party_id = COALESCE($5, party_id), input_qty = COALESCE($6, input_qty), output_qty = COALESCE($7, output_qty), rejection = COALESCE($8, rejection), extra = COALESCE($9, extra), size = COALESCE($10, size), size_unit = COALESCE($11, size_unit), kg = COALESCE($12, kg), pieces = COALESCE($13, pieces), rate = COALESCE($14, rate), total_cost = COALESCE($15, total_cost), total_boxes = COALESCE($16, total_boxes), cutting = COALESCE($17, cutting), hole = COALESCE($18, hole), finishing = COALESCE($19, finishing), pieces_per_box = COALESCE($20, pieces_per_box), status = COALESCE($21, status) WHERE id = $22 RETURNING *',
+      [order_id, process_name, process_type, sequence_number, party_id, input_qty, output_qty, rejection, extra, size, size_unit, kg, pieces, rate, total_cost, total_boxes, cutting, hole, finishing, pieces_per_box, status, req.params.id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Process sequence not found' });

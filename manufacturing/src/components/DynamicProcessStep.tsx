@@ -6,6 +6,9 @@ import InventorySelect from "@/components/InventorySelect";
 const ALL_FIELDS = [
   { key: "partyName", label: "Party Name", type: "select" },
   { key: "size", label: "Size", type: "text" },
+  { key: "size_unit", label: "Size Unit", type: "select", options: ["Pieces", "Inches"] },
+  { key: "kg", label: "KG (Raw Material)", type: "number" },
+  { key: "pieces", label: "Pieces Required", type: "number" },
   { key: "inputQty", label: "Input Qty", type: "number" },
   { key: "rejection", label: "Rejection", type: "number" },
   { key: "extra", label: "Extra (To Inventory)", type: "number" },

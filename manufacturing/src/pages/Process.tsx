@@ -9,12 +9,10 @@ import api from "@/api/api";
 import { PROCESS_TYPES } from "@/config/processTypes";
 import {
   Factory,
-  Save,
   Package,
   Trash2,
   Archive,
   Settings,
-  FileText,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
@@ -86,6 +84,9 @@ function Process() {
                   rejection: saved.rejection || step.fields.rejection,
                   extra: saved.extra || step.fields.extra,
                   size: saved.size || step.fields.size,
+                  size_unit: saved.size_unit || step.fields.size_unit || "Pieces",
+                  kg: saved.kg || step.fields.kg || 0,
+                  pieces: saved.pieces || step.fields.pieces || 0,
                   rate: saved.rate || step.fields.rate,
                   totalCost: saved.total_cost || step.fields.totalCost,
                   totalBoxes: saved.total_boxes || step.fields.totalBoxes,
@@ -124,6 +125,9 @@ function Process() {
           rejection: step.fields.rejection || 0,
           extra: step.fields.extra || 0,
           size: step.fields.size || null,
+          size_unit: step.fields.size_unit || "Pieces",
+          kg: step.fields.kg || 0,
+          pieces: step.fields.pieces || 0,
           rate: step.fields.rate || 0,
           total_cost: step.fields.totalCost || 0,
           total_boxes: step.fields.totalBoxes || 0,
@@ -140,12 +144,12 @@ function Process() {
     }
   };
 
-  const [productProcessSequence, setProductProcessSequence] = useState([
-    { id: "process-1", processName: "Raw Material", processType: "basic", partyName: "", fields: { inputQty: 0, rejection: 0, extra: 0, output: 0 } },
-    { id: "process-2", processName: "Cutting", processType: "withSize", partyName: "", fields: { size: "", inputQty: 0, rejection: 0, extra: 0, output: 0 } },
-    { id: "process-3", processName: "Drilling", processType: "cutting", partyName: "", fields: { size: "", inputQty: 0, cutting: 0, hole: 0, rate: 0, rejection: 0, extra: 0, output: 0 } },
-    { id: "process-4", processName: "Polish", processType: "finishing", partyName: "", fields: { size: "", inputQty: 0, finishing: "", rate: 0, totalCost: 0, rejection: 0, extra: 0, output: 0 } },
-    { id: "process-5", processName: "Packing", processType: "packing", partyName: "", fields: { size: "", inputQty: 0, piecesPerBox: 0, totalBoxes: 0 } },
+  const [productProcessSequence, setProductProcessSequence] = useState<any[]>([
+    { id: "process-1", processName: "Raw Material", processType: "basic", partyName: "", fields: { inputQty: 0, rejection: 0, extra: 0, output: 0, kg: 0, pieces: 0, size_unit: "Pieces" } },
+    { id: "process-2", processName: "Cutting", processType: "withSize", partyName: "", fields: { size: "", size_unit: "Pieces", kg: 0, pieces: 0, inputQty: 0, rejection: 0, extra: 0, output: 0 } },
+    { id: "process-3", processName: "Drilling", processType: "cutting", partyName: "", fields: { size: "", size_unit: "Pieces", kg: 0, pieces: 0, inputQty: 0, cutting: 0, hole: 0, rate: 0, rejection: 0, extra: 0, output: 0 } },
+    { id: "process-4", processName: "Polish", processType: "finishing", partyName: "", fields: { size: "", size_unit: "Pieces", kg: 0, pieces: 0, inputQty: 0, finishing: "", rate: 0, totalCost: 0, rejection: 0, extra: 0, output: 0 } },
+    { id: "process-5", processName: "Packing", processType: "packing", partyName: "", fields: { size: "", size_unit: "Pieces", kg: 0, pieces: 0, inputQty: 0, piecesPerBox: 0, totalBoxes: 0 } },
   ]);
 
   const [inventoryItems, setInventoryItems] = useState([
@@ -369,84 +373,7 @@ function Process() {
       </div>
     </div>
 
-    <div>
-      <label className="block text-sm font-medium mb-2">
-        Selected Unit
-      </label>
-
-      <div className="flex gap-6 mt-3">
-
-        <label className="flex items-center gap-2">
-          <input
-            type="radio"
-            name="unit"
-          />
-          KG
-        </label>
-
-        <label className="flex items-center gap-2">
-          <input
-            type="radio"
-            name="unit"
-            defaultChecked
-          />
-          Pieces
-        </label>
-
-      </div>
-    </div>
-
     <div className="flex justify-end gap-3">
-
-     <button
-  className="
-    px-6 py-3
-    bg-blue-600
-    text-white
-    rounded-xl
-    flex items-center gap-2
-  "
->
-  <Save size={18} />
-  Save Process
-</button>
-
-      <button
-        onClick={() => {
-          console.log("Generating report with data:", {
-            order,
-            processSequence: productProcessSequence,
-            inventoryItems,
-          });
-          navigate(`/report/${order?.order_id_custom || order?.id || 'new'}`, {
-            state: {
-              order,
-              processSequence: productProcessSequence,
-              inventoryItems,
-            },
-          });
-        }}
-        className="
-          px-6 py-3
-          bg-violet-600
-          text-white
-          rounded-xl
-          flex items-center gap-2
-        "
-      >
-        <FileText size={18} />
-        Generate Report
-      </button>
-
-      <button
-        className="
-          px-6 py-3
-          border
-          rounded-xl
-        "
-      >
-        Reset
-      </button>
 
     </div>
 

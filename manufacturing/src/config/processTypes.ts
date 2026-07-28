@@ -5,6 +5,8 @@ const PROCESS_TYPES = {
     fields: [
       { key: "partyName", label: "Party Name", type: "select" },
       { key: "unit", label: "Unit", type: "radio", options: ["KG", "Pieces"] },
+      { key: "kg", label: "KG (Raw Material)", type: "number", editable: true },
+      { key: "pieces", label: "Pieces Required", type: "number", editable: true },
       { key: "inputQty", label: "Input Qty", type: "number", editable: true },
       { key: "rejection", label: "Rejection", type: "number", editable: true },
       { key: "extra", label: "Extra (To Inventory)", type: "number", editable: true },
@@ -17,6 +19,9 @@ const PROCESS_TYPES = {
     fields: [
       { key: "partyName", label: "Party Name", type: "select" },
       { key: "size", label: "Size", type: "text", editable: true },
+      { key: "size_unit", label: "Size Unit", type: "select", options: ["Pieces", "Inches"], editable: true },
+      { key: "kg", label: "KG (Raw Material)", type: "number", editable: true },
+      { key: "pieces", label: "Pieces Required", type: "number", editable: true },
       { key: "inputQty", label: "Pieces (Input)", type: "number", editable: true },
       { key: "rejection", label: "Rejection", type: "number", editable: true },
       { key: "extra", label: "Extra", type: "number", editable: true },
@@ -29,6 +34,9 @@ const PROCESS_TYPES = {
     fields: [
       { key: "partyName", label: "Party Name", type: "select" },
       { key: "size", label: "Size", type: "text", editable: true },
+      { key: "size_unit", label: "Size Unit", type: "select", options: ["Pieces", "Inches"], editable: true },
+      { key: "kg", label: "KG (Raw Material)", type: "number", editable: true },
+      { key: "pieces", label: "Pieces Required", type: "number", editable: true },
       { key: "inputQty", label: "Pieces (Input)", type: "number", editable: true },
       { key: "cutting", label: "Cutting (Auto)", type: "number", calculated: true },
       { key: "hole", label: "Hole (Per Pc)", type: "number", editable: true },
@@ -47,6 +55,9 @@ const PROCESS_TYPES = {
     fields: [
       { key: "partyName", label: "Party Name", type: "select" },
       { key: "size", label: "Size", type: "text", editable: true },
+      { key: "size_unit", label: "Size Unit", type: "select", options: ["Pieces", "Inches"], editable: true },
+      { key: "kg", label: "KG (Raw Material)", type: "number", editable: true },
+      { key: "pieces", label: "Pieces Required", type: "number", editable: true },
       { key: "inputQty", label: "Pieces (Input)", type: "number", editable: true },
       { key: "finishing", label: "Finishing", type: "text", editable: true },
       { key: "rate", label: "Rate / Pc", type: "number", editable: true },
@@ -65,6 +76,9 @@ const PROCESS_TYPES = {
     fields: [
       { key: "partyName", label: "Party Name", type: "select" },
       { key: "size", label: "Size", type: "text", editable: true },
+      { key: "size_unit", label: "Size Unit", type: "select", options: ["Pieces", "Inches"], editable: true },
+      { key: "kg", label: "KG (Raw Material)", type: "number", editable: true },
+      { key: "pieces", label: "Pieces Required", type: "number", editable: true },
       { key: "inputQty", label: "Input Qty", type: "number", editable: true },
       { key: "piecesPerBox", label: "Pieces Per Box", type: "number", editable: true },
       { key: "totalBoxes", label: "Total Boxes", type: "number", calculated: true },

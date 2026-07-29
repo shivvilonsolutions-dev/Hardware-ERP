@@ -5,6 +5,8 @@ import { FileText, Calendar, Package, Archive, TrendingUp, Download, Users } fro
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import api from "@/api/api";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 function Reports() {
   const navigate = useNavigate();
@@ -222,40 +224,158 @@ function Reports() {
     URL.revokeObjectURL(url);
   };
 
-  const exportToJSON = () => {
-    // Build process data for each order
-    const ordersWithProcesses = filteredOrders.map(order => {
-      const orderParties = parties.filter((p) => p.current_order === order.order_id_custom);
-      return {
-        ...order,
-        processes: orderParties.map(party => ({
-          processName: party.current_process,
-          partyName: party.party_name,
-          quantityPcs: party.quantity_pcs,
-          size: party.size,
-          status: party.status
-        }))
-      };
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    let currentY = 22;
+    
+    // Add title
+    doc.setFontSize(18);
+    doc.text("Manufacturing Report", 14, currentY);
+    currentY += 10;
+    
+    // Add date range info
+    doc.setFontSize(12);
+    doc.text(`Period: Custom Range (${customStartDate} to ${customEndDate})`, 14, currentY);
+    currentY += 8;
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, currentY);
+    currentY += 15;
+    
+    // Summary section
+    doc.setFontSize(14);
+    doc.text("Summary", 14, currentY);
+    currentY += 5;
+    
+    autoTable(doc, {
+      startY: currentY,
+      head: [["Total Orders", "Total Quantity", "Completed", "Pending", "Total Parties", "Inventory"]],
+      body: [[
+        summary.totalOrders,
+        summary.totalQuantity,
+        summary.completedOrders,
+        summary.pendingOrders,
+        summary.totalParties,
+        summary.totalInventory
+      ]],
+      theme: 'grid',
+      headStyles: { fillColor: [99, 102, 241] }
     });
-
-    const reportData = {
-      dateRange,
-      startDate: customStartDate || new Date().toISOString().split("T")[0],
-      endDate: customEndDate || new Date().toISOString().split("T")[0],
-      summary,
-      orders: ordersWithProcesses
-    };
-
-    const jsonContent = JSON.stringify(reportData, null, 2);
-    const blob = new Blob([jsonContent], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `report_${dateRange}_${new Date().toISOString().split("T")[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    
+    // Orders table
+    doc.addPage();
+    currentY = 22;
+    doc.setFontSize(18);
+    doc.text("Manufacturing Report", 14, currentY);
+    currentY += 13;
+    doc.setFontSize(14);
+    doc.text("Order Details", 14, currentY);
+    currentY += 5;
+    
+    const orderData = filteredOrders.map(order => [
+      order.order_id_custom,
+      order.client_name,
+      order.brand_name,
+      order.product_name,
+      order.quantity,
+      order.status,
+      order.order_date
+    ]);
+    
+    autoTable(doc, {
+      startY: currentY,
+      head: [["Order ID", "Client", "Brand", "Product", "Quantity", "Status", "Date"]],
+      body: orderData,
+      theme: 'grid',
+      headStyles: { fillColor: [99, 102, 241] }
+    });
+    
+    // Process details
+    doc.addPage();
+    currentY = 22;
+    doc.setFontSize(18);
+    doc.text("Manufacturing Report", 14, currentY);
+    currentY += 13;
+    doc.setFontSize(14);
+    doc.text("Process Details", 14, currentY);
+    currentY += 5;
+    
+    const processData = [];
+    filteredOrders.forEach(order => {
+      const orderParties = parties.filter(p => p.current_order === order.order_id_custom);
+      orderParties.forEach(party => {
+        processData.push([
+          order.order_id_custom,
+          party.current_process || "N/A",
+          party.party_name || "Not Assigned",
+          party.quantity_pcs || 0,
+          party.size || "N/A",
+          party.status || "Pending"
+        ]);
+      });
+    });
+    
+    autoTable(doc, {
+      startY: currentY,
+      head: [["Order ID", "Process Name", "Party", "Quantity (Pcs)", "Size", "Status"]],
+      body: processData,
+      theme: 'grid',
+      headStyles: { fillColor: [99, 102, 241] }
+    });
+    
+    // Party details
+    doc.addPage();
+    currentY = 22;
+    doc.setFontSize(18);
+    doc.text("Manufacturing Report", 14, currentY);
+    currentY += 13;
+    doc.setFontSize(14);
+    doc.text("Party Details", 14, currentY);
+    currentY += 5;
+    
+    const partyData = parties.map(party => [
+      party.party_name,
+      party.current_order || "N/A",
+      party.current_process || "N/A",
+      party.quantity_pcs || 0,
+      party.size || "N/A",
+      party.status || "Pending"
+    ]);
+    
+    autoTable(doc, {
+      startY: currentY,
+      head: [["Party Name", "Current Order", "Current Process", "Quantity (Pcs)", "Size", "Status"]],
+      body: partyData,
+      theme: 'grid',
+      headStyles: { fillColor: [99, 102, 241] }
+    });
+    
+    // Inventory details
+    doc.addPage();
+    currentY = 22;
+    doc.setFontSize(18);
+    doc.text("Manufacturing Report", 14, currentY);
+    currentY += 13;
+    doc.setFontSize(14);
+    doc.text("Inventory Details", 14, currentY);
+    currentY += 5;
+    
+    const inventoryData = inventory.map(item => [
+      item.party_name || "N/A",
+      item.order_name || "N/A",
+      item.process_name || "N/A",
+      item.quantity || 0,
+      item.unit || "Pcs",
+      item.status || "Pending"
+    ]);
+    
+    autoTable(doc, {
+      startY: currentY,
+      head: [["Party Name", "Order Name", "Process Name", "Quantity", "Unit", "Status"]],
+      body: inventoryData,
+      theme: 'grid',
+      headStyles: { fillColor: [99, 102, 241] }
+    });
+    
+    doc.save(`report_${customStartDate}_to_${customEndDate}.pdf`);
   };
 
   return (
@@ -364,11 +484,11 @@ function Reports() {
               Export CSV
             </button>
             <button
-              onClick={exportToJSON}
+              onClick={exportToPDF}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700"
             >
               <Download size={18} />
-              Export JSON
+              Export PDF
             </button>
           </div>
         </div>

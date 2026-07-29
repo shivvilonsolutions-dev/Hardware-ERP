@@ -35,6 +35,8 @@ const [selectedParty, setSelectedParty] =
     status: "Active",
   });
 
+  const [orders, setOrders] = useState([]);
+
   const [searchTerm, setSearchTerm] = useState("");
 
 const [partyList, setPartyList] = useState([]);
@@ -65,9 +67,21 @@ const fetchParties = async () => {
   }
 };
 
+const fetchOrders = async () => {
+  try {
+    const response = await api.get("/orders");
+    if (response.data && response.data.success) {
+      setOrders(response.data.data || []);
+    }
+  } catch (error) {
+    console.error("Error fetching orders:", error);
+  }
+};
+
 // Component load hote hi automatic chalne ke liye
 useEffect(() => {
   fetchParties();
+  fetchOrders();
 }, []);
 
 const sameOrderParties =
@@ -287,76 +301,111 @@ const filteredParties = partyList.filter((party) =>
 
     <div className="grid grid-cols-2 gap-4">
 
-      <input
-        type="text"
-        placeholder="Party Name"
-        value={newParty.name}
-        onChange={(e) =>
-          setNewParty({
-            ...newParty,
-            name: e.target.value,
-          })
-        }
-        className="border rounded-xl px-4 py-3"
-      />
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Party Name</label>
+        <input
+          type="text"
+          placeholder="Enter party name"
+          value={newParty.name}
+          onChange={(e) =>
+            setNewParty({
+              ...newParty,
+              name: e.target.value,
+            })
+          }
+          className="border rounded-xl px-4 py-3 w-full"
+          autoComplete="off"
+        />
+      </div>
 
-      
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Process Type</label>
+        <input
+          type="text"
+          placeholder="Enter process type"
+          value={newParty.processType}
+          onChange={(e) =>
+            setNewParty({
+              ...newParty,
+              processType: e.target.value,
+            })
+          }
+          className="border rounded-xl px-4 py-3 w-full"
+          autoComplete="off"
+        />
+      </div>
 
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Current Order</label>
+        <select
+          value={newParty.order}
+          onChange={(e) =>
+            setNewParty({
+              ...newParty,
+              order: e.target.value,
+            })
+          }
+          className="border rounded-xl px-4 py-3 w-full"
+        >
+          <option value="">Select Order</option>
+          {orders.map((order) => (
+            <option key={order.id} value={order.order_id_custom}>
+              {order.order_id_custom} - {order.client_name} - {order.product_name}
+            </option>
+          ))}
+        </select>
+      </div>
 
-<input
-  type="text"
-  placeholder="Process Type"
-  value={newParty.processType}
-  onChange={(e) =>
-    setNewParty({
-      ...newParty,
-      processType: e.target.value,
-    })
-  }
-  className="border rounded-xl px-4 py-3"
-/>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Quantity (Pcs)</label>
+        <input
+          type="number"
+          placeholder="Enter quantity"
+          value={newParty.quantity}
+          onChange={(e) =>
+            setNewParty({
+              ...newParty,
+              quantity: e.target.value,
+            })
+          }
+          className="border rounded-xl px-4 py-3 w-full"
+          autoComplete="off"
+        />
+      </div>
 
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Size</label>
+        <input
+          type="text"
+          placeholder="Enter size"
+          value={newParty.size}
+          onChange={(e) =>
+            setNewParty({
+              ...newParty,
+              size: e.target.value,
+            })
+          }
+          className="border rounded-xl px-4 py-3 w-full"
+          autoComplete="off"
+        />
+      </div>
 
-      <input
-        type="text"
-        placeholder="Order No"
-        value={newParty.order}
-        onChange={(e) =>
-          setNewParty({
-            ...newParty,
-            order: e.target.value,
-          })
-        }
-        className="border rounded-xl px-4 py-3"
-      />
-
-      <input
-        type="text"
-        placeholder="Quantity"
-        value={newParty.quantity}
-        onChange={(e) =>
-          setNewParty({
-            ...newParty,
-            quantity: e.target.value,
-          })
-        }
-        className="border rounded-xl px-4 py-3"
-      />
-
-      <input
-        type="text"
-        placeholder="Size"
-        value={newParty.size}
-        onChange={(e) =>
-          setNewParty({
-            ...newParty,
-            size: e.target.value,
-          })
-        }
-        className="border rounded-xl px-4 py-3"
-      />
-
-     
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+        <select
+          value={newParty.status}
+          onChange={(e) =>
+            setNewParty({
+              ...newParty,
+              status: e.target.value,
+            })
+          }
+          className="border rounded-xl px-4 py-3 w-full"
+        >
+          <option value="Active">Active</option>
+          <option value="Inactive">Inactive</option>
+        </select>
+      </div>
 
       <div className="col-span-2 flex justify-end gap-3">
 
@@ -460,7 +509,7 @@ const filteredParties = partyList.filter((party) =>
   }}
   className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center"
 >
-  👁️
+  ???
 </button>
 
     <button
@@ -471,7 +520,7 @@ const filteredParties = partyList.filter((party) =>
   }}
   className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center"
 >
-  ✏️
+  ??
 </button>
   </div>
 

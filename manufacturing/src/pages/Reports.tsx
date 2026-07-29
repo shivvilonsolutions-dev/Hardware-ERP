@@ -18,7 +18,7 @@ function Reports() {
   const [dateRange, setDateRange] = useState("custom");
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
-  const [showReportPreview, setShowReportPreview] = useState(false);
+  const [showReportPreview, setShowReportPreview] = useState(true);
 
   const fetchOrders = async () => {
     try {
@@ -270,7 +270,7 @@ function Reports() {
       order.product_name,
       order.quantity,
       order.status,
-      order.order_date
+      order.order_date || (order.created_at ? new Date(order.created_at).toLocaleDateString() : "N/A")
     ]);
     
     autoTable(doc, {
@@ -523,7 +523,7 @@ function Reports() {
                             {order.status}
                           </span>
                         </td>
-                        <td className="border border-slate-300 px-4 py-2">{order.order_date}</td>
+                        <td className="border border-slate-300 px-4 py-2">{order.order_date || (order.created_at ? new Date(order.created_at).toLocaleDateString() : "N/A")}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -547,7 +547,7 @@ function Reports() {
                 });
                 
                 if (processData.length === 0) {
-                  return <p className="text-center text-slate-500 py-4">No process data available for these orders.</p>;
+                  return <p className="text-center text-slate-500 py-4">No process data available for these orders. Parties may not be assigned to orders yet.</p>;
                 }
                 
                 return (
@@ -566,7 +566,7 @@ function Reports() {
                       {processData.map(({ order, party }, pIndex) => (
                         <tr key={`${order.id}-${party.id}`} className={pIndex % 2 === 0 ? "bg-white" : "bg-slate-50"}>
                           <td className="border border-slate-300 px-4 py-2">{order.order_id_custom}</td>
-                          <td className="border border-slate-300 px-4 py-2">{party.current_process || "N/A"}</td>
+                          <td className="border border-slate-300 px-4 py-2">{party.current_process || party.process_type || "N/A"}</td>
                           <td className="border border-slate-300 px-4 py-2">{party.party_name || "Not Assigned"}</td>
                           <td className="border border-slate-300 px-4 py-2">{party.quantity_pcs || 0}</td>
                           <td className="border border-slate-300 px-4 py-2">{party.size || "N/A"}</td>

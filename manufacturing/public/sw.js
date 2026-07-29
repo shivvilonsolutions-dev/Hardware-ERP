@@ -2,8 +2,8 @@ const CACHE_NAME = "hardware-erp-v1";
 const urlsToCache = [
   "/",
   "/manifest.json",
-  "/icon-192x192.png",
-  "/icon-512x512.png",
+  "/favicon.svg",
+  "/icons.svg",
 ];
 
 self.addEventListener("install", (event) => {

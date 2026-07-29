@@ -11,8 +11,10 @@ function Reports() {
   const [orders, setOrders] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [parties, setParties] = useState([]);
+  const [inventory, setInventory] = useState([]);
+  const [processSequences, setProcessSequences] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState("thisMonth");
+  const [dateRange, setDateRange] = useState("custom");
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
   const [showReportPreview, setShowReportPreview] = useState(false);
@@ -24,8 +26,6 @@ function Reports() {
       filterOrdersByDate(res.data.data || [], dateRange);
     } catch (error) {
       console.error("Error fetching orders:", error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -35,6 +35,24 @@ function Reports() {
       setParties(res.data.data || []);
     } catch (error) {
       console.error("Error fetching parties:", error);
+    }
+  };
+
+  const fetchInventory = async () => {
+    try {
+      const res = await api.get("/inventory");
+      setInventory(res.data.data || []);
+    } catch (error) {
+      console.error("Error fetching inventory:", error);
+    }
+  };
+
+  const fetchProcessSequences = async () => {
+    try {
+      const res = await api.get("/process-sequences");
+      setProcessSequences(res.data.data || []);
+    } catch (error) {
+      console.error("Error fetching process sequences:", error);
     }
   };
 
@@ -76,8 +94,16 @@ function Reports() {
   };
 
   useEffect(() => {
-    fetchOrders();
-    fetchParties();
+    const fetchAllData = async () => {
+      await Promise.all([
+        fetchOrders(),
+        fetchParties(),
+        fetchInventory(),
+        fetchProcessSequences()
+      ]);
+      setLoading(false);
+    };
+    fetchAllData();
   }, []);
 
   useEffect(() => {
@@ -89,8 +115,11 @@ function Reports() {
     const totalQuantity = filteredOrders.reduce((sum, order) => sum + (order.quantity || 0), 0);
     const completedOrders = filteredOrders.filter((order) => order.status === "Completed").length;
     const pendingOrders = filteredOrders.filter((order) => order.status === "Pending").length;
+    const totalParties = parties.length;
+    const totalInventory = inventory.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    const totalProcesses = processSequences.length;
 
-    return { totalOrders, totalQuantity, completedOrders, pendingOrders };
+    return { totalOrders, totalQuantity, completedOrders, pendingOrders, totalParties, totalInventory, totalProcesses };
   };
 
   const summary = calculateSummary();
@@ -245,36 +274,6 @@ function Reports() {
         </div>
         <div className="flex gap-3 mb-4">
           <button
-            onClick={() => setDateRange("thisWeek")}
-            className={`px-4 py-2 rounded-lg ${
-              dateRange === "thisWeek"
-                ? "bg-violet-600 text-white"
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
-          >
-            This Week
-          </button>
-          <button
-            onClick={() => setDateRange("thisMonth")}
-            className={`px-4 py-2 rounded-lg ${
-              dateRange === "thisMonth"
-                ? "bg-violet-600 text-white"
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
-          >
-            This Month
-          </button>
-          <button
-            onClick={() => setDateRange("lastMonth")}
-            className={`px-4 py-2 rounded-lg ${
-              dateRange === "lastMonth"
-                ? "bg-violet-600 text-white"
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
-          >
-            Last Month
-          </button>
-          <button
             onClick={() => setDateRange("custom")}
             className={`px-4 py-2 rounded-lg ${
               dateRange === "custom"
@@ -310,7 +309,7 @@ function Reports() {
       </SectionCard>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-6 mb-6">
+      <div className="grid grid-cols-6 gap-6 mb-6">
         <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
           <Package size={32} className="text-blue-600 mb-2" />
           <p className="text-sm text-slate-600">Total Orders</p>
@@ -331,29 +330,15 @@ function Reports() {
           <p className="text-sm text-slate-600">Pending</p>
           <h2 className="text-3xl font-bold text-orange-700">{summary.pendingOrders}</h2>
         </div>
-      </div>
-
-      {/* Advanced Analytics Cards */}
-      <div className="grid grid-cols-4 gap-6 mb-6">
-        <div className="bg-indigo-50 rounded-xl p-6 border border-indigo-200">
-          <Calendar size={32} className="text-indigo-600 mb-2" />
-          <p className="text-sm text-slate-600">This Week</p>
-          <h2 className="text-3xl font-bold text-indigo-700">{analytics.weeklyOrders}</h2>
-        </div>
-        <div className="bg-teal-50 rounded-xl p-6 border border-teal-200">
-          <Calendar size={32} className="text-teal-600 mb-2" />
-          <p className="text-sm text-slate-600">This Month</p>
-          <h2 className="text-3xl font-bold text-teal-700">{analytics.monthlyOrders}</h2>
-        </div>
         <div className="bg-pink-50 rounded-xl p-6 border border-pink-200">
-          <TrendingUp size={32} className="text-pink-600 mb-2" />
-          <p className="text-sm text-slate-600">Avg Completion (Days)</p>
-          <h2 className="text-3xl font-bold text-pink-700">{analytics.avgCompletionTime}</h2>
+          <Users size={32} className="text-pink-600 mb-2" />
+          <p className="text-sm text-slate-600">Total Parties</p>
+          <h2 className="text-3xl font-bold text-pink-700">{summary.totalParties}</h2>
         </div>
         <div className="bg-cyan-50 rounded-xl p-6 border border-cyan-200">
-          <Users size={32} className="text-cyan-600 mb-2" />
-          <p className="text-sm text-slate-600">Total Parties</p>
-          <h2 className="text-3xl font-bold text-cyan-700">{Object.keys(analytics.ordersPerParty).length}</h2>
+          <Package size={32} className="text-cyan-600 mb-2" />
+          <p className="text-sm text-slate-600">Inventory</p>
+          <h2 className="text-3xl font-bold text-cyan-700">{summary.totalInventory}</h2>
         </div>
       </div>
 
@@ -400,7 +385,7 @@ function Reports() {
             {/* Summary Section */}
             <div className="mb-6">
               <h4 className="font-semibold text-lg mb-3 text-slate-700">Summary</h4>
-              <div className="grid grid-cols-4 gap-4 bg-slate-50 p-4 rounded-lg">
+              <div className="grid grid-cols-6 gap-4 bg-slate-50 p-4 rounded-lg">
                 <div className="text-center">
                   <p className="text-sm text-slate-600">Total Orders</p>
                   <p className="text-2xl font-bold text-blue-600">{summary.totalOrders}</p>
@@ -416,6 +401,14 @@ function Reports() {
                 <div className="text-center">
                   <p className="text-sm text-slate-600">Pending</p>
                   <p className="text-2xl font-bold text-orange-600">{summary.pendingOrders}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-slate-600">Total Parties</p>
+                  <p className="text-2xl font-bold text-pink-600">{summary.totalParties}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-slate-600">Inventory</p>
+                  <p className="text-2xl font-bold text-cyan-600">{summary.totalInventory}</p>
                 </div>
               </div>
             </div>
@@ -459,7 +452,7 @@ function Reports() {
 
             {/* Process Details */}
             <div className="mb-6">
-              <h4 className="font-semibold text-lg mb-3 text-slate-700">Process Details (Real-time Status)</h4>
+              <h4 className="font-semibold text-lg mb-3 text-slate-700">Process Details</h4>
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="bg-slate-100">
@@ -503,61 +496,82 @@ function Reports() {
 
             {/* Party Performance */}
             <div className="mb-6">
-              <h4 className="font-semibold text-lg mb-3 text-slate-700">Party Performance (Orders & Processes)</h4>
+              <h4 className="font-semibold text-lg mb-3 text-slate-700">Party Details</h4>
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="bg-slate-100">
                     <th className="border border-slate-300 px-4 py-2 text-left">Party Name</th>
-                    <th className="border border-slate-300 px-4 py-2 text-left">Total Orders</th>
-                    <th className="border border-slate-300 px-4 py-2 text-left">Total Processes</th>
-                    <th className="border border-slate-300 px-4 py-2 text-left">Total Quantity (Pcs)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(analytics.ordersPerParty).map(([partyName, orderCount], index) => (
-                    <tr key={partyName} className={index % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                      <td className="border border-slate-300 px-4 py-2 font-medium">{partyName}</td>
-                      <td className="border border-slate-300 px-4 py-2">{orderCount}</td>
-                      <td className="border border-slate-300 px-4 py-2">{analytics.processesPerParty[partyName] || 0}</td>
-                      <td className="border border-slate-300 px-4 py-2">
-                        {parties.filter(p => p.party_name === partyName).reduce((sum, p) => sum + (p.quantity_pcs || 0), 0)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {Object.keys(analytics.ordersPerParty).length === 0 && (
-                <p className="text-center text-slate-500 py-4">No party data available</p>
-              )}
-            </div>
-
-            {/* Order Completion Times */}
-            <div>
-              <h4 className="font-semibold text-lg mb-3 text-slate-700">Order Completion Time (Days)</h4>
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-slate-100">
-                    <th className="border border-slate-300 px-4 py-2 text-left">Order ID</th>
-                    <th className="border border-slate-300 px-4 py-2 text-left">Days Since Order</th>
+                    <th className="border border-slate-300 px-4 py-2 text-left">Current Order</th>
+                    <th className="border border-slate-300 px-4 py-2 text-left">Current Process</th>
+                    <th className="border border-slate-300 px-4 py-2 text-left">Quantity (Pcs)</th>
+                    <th className="border border-slate-300 px-4 py-2 text-left">Size</th>
                     <th className="border border-slate-300 px-4 py-2 text-left">Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {analytics.orderCompletionTimes.map((item, index) => (
-                    <tr key={item.orderId} className={index % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                      <td className="border border-slate-300 px-4 py-2">{item.orderId}</td>
-                      <td className="border border-slate-300 px-4 py-2">{item.days} days</td>
+                  {parties.map((party, index) => (
+                    <tr key={party.id} className={index % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                      <td className="border border-slate-300 px-4 py-2 font-medium">{party.party_name}</td>
+                      <td className="border border-slate-300 px-4 py-2">{party.current_order || "N/A"}</td>
+                      <td className="border border-slate-300 px-4 py-2">{party.current_process || "N/A"}</td>
+                      <td className="border border-slate-300 px-4 py-2">{party.quantity_pcs || 0}</td>
+                      <td className="border border-slate-300 px-4 py-2">{party.size || "N/A"}</td>
                       <td className="border border-slate-300 px-4 py-2">
                         <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          item.status === "Completed" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
+                          party.status === "active" ? "bg-green-100 text-green-700" : 
+                          party.status === "completed" ? "bg-blue-100 text-blue-700" : 
+                          "bg-gray-100 text-gray-700"
                         }`}>
-                          {item.status}
+                          {party.status || "Pending"}
                         </span>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              {parties.length === 0 && (
+                <p className="text-center text-slate-500 py-4">No party data available</p>
+              )}
+            </div>
+
+            {/* Inventory Details */}
+            <div>
+              <h4 className="font-semibold text-lg mb-3 text-slate-700">Inventory Details</h4>
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-slate-100">
+                    <th className="border border-slate-300 px-4 py-2 text-left">Party Name</th>
+                    <th className="border border-slate-300 px-4 py-2 text-left">Order Name</th>
+                    <th className="border border-slate-300 px-4 py-2 text-left">Process Name</th>
+                    <th className="border border-slate-300 px-4 py-2 text-left">Quantity</th>
+                    <th className="border border-slate-300 px-4 py-2 text-left">Unit</th>
+                    <th className="border border-slate-300 px-4 py-2 text-left">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {inventory.map((item, index) => (
+                    <tr key={item.id} className={index % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                      <td className="border border-slate-300 px-4 py-2 font-medium">{item.party_name || "N/A"}</td>
+                      <td className="border border-slate-300 px-4 py-2">{item.order_name || "N/A"}</td>
+                      <td className="border border-slate-300 px-4 py-2">{item.process_name || "N/A"}</td>
+                      <td className="border border-slate-300 px-4 py-2">{item.quantity || 0}</td>
+                      <td className="border border-slate-300 px-4 py-2">{item.unit || "Pcs"}</td>
+                      <td className="border border-slate-300 px-4 py-2">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          item.status === "Available" ? "bg-green-100 text-green-700" : 
+                          item.status === "In Process" ? "bg-blue-100 text-blue-700" : 
+                          "bg-gray-100 text-gray-700"
+                        }`}>
+                          {item.status || "Pending"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {inventory.length === 0 && (
+                <p className="text-center text-slate-500 py-4">No inventory data available</p>
+              )}
             </div>
           </div>
         )}

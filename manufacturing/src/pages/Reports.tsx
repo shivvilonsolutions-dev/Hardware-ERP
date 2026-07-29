@@ -13,7 +13,6 @@ function Reports() {
   const [orders, setOrders] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [parties, setParties] = useState([]);
-  const [inventory, setInventory] = useState([]);
   const [processSequences, setProcessSequences] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState("custom");
@@ -37,15 +36,6 @@ function Reports() {
       setParties(res.data.data || []);
     } catch (error) {
       console.error("Error fetching parties:", error);
-    }
-  };
-
-  const fetchInventory = async () => {
-    try {
-      const res = await api.get("/inventory");
-      setInventory(res.data.data || []);
-    } catch (error) {
-      console.error("Error fetching inventory:", error);
     }
   };
 
@@ -105,7 +95,6 @@ function Reports() {
       await Promise.all([
         fetchOrders(),
         fetchParties(),
-        fetchInventory(),
         fetchProcessSequences()
       ]);
       setLoading(false);
@@ -123,10 +112,9 @@ function Reports() {
     const completedOrders = filteredOrders.filter((order) => order.status === "Completed").length;
     const pendingOrders = filteredOrders.filter((order) => order.status === "Pending").length;
     const totalParties = parties.length;
-    const totalInventory = inventory.reduce((sum, item) => sum + (item.quantity || 0), 0);
     const totalProcesses = processSequences.length;
 
-    return { totalOrders, totalQuantity, completedOrders, pendingOrders, totalParties, totalInventory, totalProcesses };
+    return { totalOrders, totalQuantity, completedOrders, pendingOrders, totalParties, totalProcesses };
   };
 
   const summary = calculateSummary();
@@ -252,14 +240,14 @@ function Reports() {
     
     autoTable(doc, {
       startY: currentY,
-      head: [["Total Orders", "Total Quantity", "Completed", "Pending", "Total Parties", "Inventory"]],
+      head: [["Total Orders", "Total Quantity", "Completed", "Pending", "Total Parties", "Total Processes"]],
       body: [[
         summary.totalOrders,
         summary.totalQuantity,
         summary.completedOrders,
         summary.pendingOrders,
         summary.totalParties,
-        summary.totalInventory
+        summary.totalProcesses
       ]],
       theme: 'grid',
       headStyles: { fillColor: [99, 102, 241] }
@@ -353,33 +341,6 @@ function Reports() {
       headStyles: { fillColor: [99, 102, 241] }
     });
     
-    // Inventory details
-    doc.addPage();
-    currentY = 22;
-    doc.setFontSize(18);
-    doc.text("Manufacturing Report", 14, currentY);
-    currentY += 13;
-    doc.setFontSize(14);
-    doc.text("Inventory Details", 14, currentY);
-    currentY += 5;
-    
-    const inventoryData = inventory.map(item => [
-      item.party_name || "N/A",
-      item.order_name || "N/A",
-      item.process_name || "N/A",
-      item.quantity || 0,
-      item.unit || "Pcs",
-      item.status || "Pending"
-    ]);
-    
-    autoTable(doc, {
-      startY: currentY,
-      head: [["Party Name", "Order Name", "Process Name", "Quantity", "Unit", "Status"]],
-      body: inventoryData,
-      theme: 'grid',
-      headStyles: { fillColor: [99, 102, 241] }
-    });
-    
     doc.save(`report_${customStartDate}_to_${customEndDate}.pdf`);
   };
 
@@ -434,7 +395,7 @@ function Reports() {
       </SectionCard>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-6 gap-6 mb-6">
+      <div className="grid grid-cols-5 gap-6 mb-6">
         <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
           <Package size={32} className="text-blue-600 mb-2" />
           <p className="text-sm text-slate-600">Total Orders</p>
@@ -459,11 +420,6 @@ function Reports() {
           <Users size={32} className="text-pink-600 mb-2" />
           <p className="text-sm text-slate-600">Total Parties</p>
           <h2 className="text-3xl font-bold text-pink-700">{summary.totalParties}</h2>
-        </div>
-        <div className="bg-cyan-50 rounded-xl p-6 border border-cyan-200">
-          <Package size={32} className="text-cyan-600 mb-2" />
-          <p className="text-sm text-slate-600">Inventory</p>
-          <h2 className="text-3xl font-bold text-cyan-700">{summary.totalInventory}</h2>
         </div>
       </div>
 
@@ -510,7 +466,7 @@ function Reports() {
             {/* Summary Section */}
             <div className="mb-6">
               <h4 className="font-semibold text-lg mb-3 text-slate-700">Summary</h4>
-              <div className="grid grid-cols-6 gap-4 bg-slate-50 p-4 rounded-lg">
+              <div className="grid grid-cols-5 gap-4 bg-slate-50 p-4 rounded-lg">
                 <div className="text-center">
                   <p className="text-sm text-slate-600">Total Orders</p>
                   <p className="text-2xl font-bold text-blue-600">{summary.totalOrders}</p>
@@ -530,10 +486,6 @@ function Reports() {
                 <div className="text-center">
                   <p className="text-sm text-slate-600">Total Parties</p>
                   <p className="text-2xl font-bold text-pink-600">{summary.totalParties}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm text-slate-600">Inventory</p>
-                  <p className="text-2xl font-bold text-cyan-600">{summary.totalInventory}</p>
                 </div>
               </div>
             </div>
@@ -672,47 +624,6 @@ function Reports() {
               </table>
               {parties.length === 0 && (
                 <p className="text-center text-slate-500 py-4">No party data available</p>
-              )}
-            </div>
-
-            {/* Inventory Details */}
-            <div>
-              <h4 className="font-semibold text-lg mb-3 text-slate-700">Inventory Details ({inventory.length})</h4>
-              {inventory.length === 0 ? (
-                <p className="text-center text-slate-500 py-4">No inventory data available.</p>
-              ) : (
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="bg-slate-100">
-                      <th className="border border-slate-300 px-4 py-2 text-left">Party Name</th>
-                      <th className="border border-slate-300 px-4 py-2 text-left">Order Name</th>
-                      <th className="border border-slate-300 px-4 py-2 text-left">Process Name</th>
-                      <th className="border border-slate-300 px-4 py-2 text-left">Quantity</th>
-                      <th className="border border-slate-300 px-4 py-2 text-left">Unit</th>
-                      <th className="border border-slate-300 px-4 py-2 text-left">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {inventory.map((item, index) => (
-                      <tr key={item.id} className={index % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                        <td className="border border-slate-300 px-4 py-2 font-medium">{item.party_name || "N/A"}</td>
-                        <td className="border border-slate-300 px-4 py-2">{item.order_name || "N/A"}</td>
-                        <td className="border border-slate-300 px-4 py-2">{item.process_name || "N/A"}</td>
-                        <td className="border border-slate-300 px-4 py-2">{item.quantity || 0}</td>
-                        <td className="border border-slate-300 px-4 py-2">{item.unit || "Pcs"}</td>
-                        <td className="border border-slate-300 px-4 py-2">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            item.status === "Available" ? "bg-green-100 text-green-700" : 
-                            item.status === "In Process" ? "bg-blue-100 text-blue-700" : 
-                            "bg-gray-100 text-gray-700"
-                          }`}>
-                            {item.status || "Pending"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               )}
             </div>
           </div>

@@ -79,6 +79,11 @@ function Reports() {
         endDate = new Date(now.getFullYear(), now.getMonth(), 0);
         break;
       case "custom":
+        if (!customStartDate && !customEndDate) {
+          // Show all orders if no dates selected
+          setFilteredOrders(orderList);
+          return;
+        }
         startDate = customStartDate ? new Date(customStartDate) : new Date(now.getFullYear(), now.getMonth(), 1);
         endDate = customEndDate ? new Date(customEndDate) : now;
         break;
@@ -535,83 +540,99 @@ function Reports() {
 
             {/* Orders Table */}
             <div className="mb-6">
-              <h4 className="font-semibold text-lg mb-3 text-slate-700">Order Details</h4>
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-slate-100">
-                    <th className="border border-slate-300 px-4 py-2 text-left">Order ID</th>
-                    <th className="border border-slate-300 px-4 py-2 text-left">Client</th>
-                    <th className="border border-slate-300 px-4 py-2 text-left">Brand</th>
-                    <th className="border border-slate-300 px-4 py-2 text-left">Product</th>
-                    <th className="border border-slate-300 px-4 py-2 text-left">Quantity</th>
-                    <th className="border border-slate-300 px-4 py-2 text-left">Status</th>
-                    <th className="border border-slate-300 px-4 py-2 text-left">Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredOrders.map((order, index) => (
-                    <tr key={order.id} className={index % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                      <td className="border border-slate-300 px-4 py-2">{order.order_id_custom}</td>
-                      <td className="border border-slate-300 px-4 py-2">{order.client_name}</td>
-                      <td className="border border-slate-300 px-4 py-2">{order.brand_name}</td>
-                      <td className="border border-slate-300 px-4 py-2">{order.product_name}</td>
-                      <td className="border border-slate-300 px-4 py-2">{order.quantity}</td>
-                      <td className="border border-slate-300 px-4 py-2">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          order.status === "Completed" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
-                        }`}>
-                          {order.status}
-                        </span>
-                      </td>
-                      <td className="border border-slate-300 px-4 py-2">{order.order_date}</td>
+              <h4 className="font-semibold text-lg mb-3 text-slate-700">Order Details ({filteredOrders.length})</h4>
+              {filteredOrders.length === 0 ? (
+                <p className="text-center text-slate-500 py-4">No orders found. Select a date range or check if orders exist.</p>
+              ) : (
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100">
+                      <th className="border border-slate-300 px-4 py-2 text-left">Order ID</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Client</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Brand</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Product</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Quantity</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Status</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Date</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredOrders.map((order, index) => (
+                      <tr key={order.id} className={index % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                        <td className="border border-slate-300 px-4 py-2">{order.order_id_custom}</td>
+                        <td className="border border-slate-300 px-4 py-2">{order.client_name}</td>
+                        <td className="border border-slate-300 px-4 py-2">{order.brand_name}</td>
+                        <td className="border border-slate-300 px-4 py-2">{order.product_name}</td>
+                        <td className="border border-slate-300 px-4 py-2">{order.quantity}</td>
+                        <td className="border border-slate-300 px-4 py-2">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            order.status === "Completed" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
+                          }`}>
+                            {order.status}
+                          </span>
+                        </td>
+                        <td className="border border-slate-300 px-4 py-2">{order.order_date}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
 
             {/* Process Details */}
             <div className="mb-6">
               <h4 className="font-semibold text-lg mb-3 text-slate-700">Process Details</h4>
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-slate-100">
-                    <th className="border border-slate-300 px-4 py-2 text-left">Order ID</th>
-                    <th className="border border-slate-300 px-4 py-2 text-left">Process Name</th>
-                    <th className="border border-slate-300 px-4 py-2 text-left">Party</th>
-                    <th className="border border-slate-300 px-4 py-2 text-left">Quantity (Pcs)</th>
-                    <th className="border border-slate-300 px-4 py-2 text-left">Size</th>
-                    <th className="border border-slate-300 px-4 py-2 text-left">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredOrders.map((order) => {
-                    const orderParties = parties.filter((p) => p.current_order === order.order_id_custom);
-                    if (orderParties.length === 0) return null;
-                    return orderParties.map((party, pIndex) => (
-                      <tr key={`${order.id}-${party.id}`} className={pIndex % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                        <td className="border border-slate-300 px-4 py-2">{order.order_id_custom}</td>
-                        <td className="border border-slate-300 px-4 py-2">{party.current_process || "N/A"}</td>
-                        <td className="border border-slate-300 px-4 py-2">{party.party_name || "Not Assigned"}</td>
-                        <td className="border border-slate-300 px-4 py-2">{party.quantity_pcs || 0}</td>
-                        <td className="border border-slate-300 px-4 py-2">{party.size || "N/A"}</td>
-                        <td className="border border-slate-300 px-4 py-2">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            party.status === "active" ? "bg-green-100 text-green-700" : 
-                            party.status === "completed" ? "bg-blue-100 text-blue-700" : 
-                            "bg-gray-100 text-gray-700"
-                          }`}>
-                            {party.status || "Pending"}
-                          </span>
-                        </td>
+              {(() => {
+                const processData = [];
+                filteredOrders.forEach((order) => {
+                  const orderParties = parties.filter((p) => p.current_order === order.order_id_custom);
+                  orderParties.forEach((party) => {
+                    processData.push({
+                      order,
+                      party
+                    });
+                  });
+                });
+                
+                if (processData.length === 0) {
+                  return <p className="text-center text-slate-500 py-4">No process data available for these orders.</p>;
+                }
+                
+                return (
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100">
+                        <th className="border border-slate-300 px-4 py-2 text-left">Order ID</th>
+                        <th className="border border-slate-300 px-4 py-2 text-left">Process Name</th>
+                        <th className="border border-slate-300 px-4 py-2 text-left">Party</th>
+                        <th className="border border-slate-300 px-4 py-2 text-left">Quantity (Pcs)</th>
+                        <th className="border border-slate-300 px-4 py-2 text-left">Size</th>
+                        <th className="border border-slate-300 px-4 py-2 text-left">Status</th>
                       </tr>
-                    ));
-                  })}
-                </tbody>
-              </table>
-              {parties.filter(p => filteredOrders.some(o => o.order_id_custom === p.current_order)).length === 0 && (
-                <p className="text-center text-slate-500 py-4">No process data available for these orders</p>
-              )}
+                    </thead>
+                    <tbody>
+                      {processData.map(({ order, party }, pIndex) => (
+                        <tr key={`${order.id}-${party.id}`} className={pIndex % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                          <td className="border border-slate-300 px-4 py-2">{order.order_id_custom}</td>
+                          <td className="border border-slate-300 px-4 py-2">{party.current_process || "N/A"}</td>
+                          <td className="border border-slate-300 px-4 py-2">{party.party_name || "Not Assigned"}</td>
+                          <td className="border border-slate-300 px-4 py-2">{party.quantity_pcs || 0}</td>
+                          <td className="border border-slate-300 px-4 py-2">{party.size || "N/A"}</td>
+                          <td className="border border-slate-300 px-4 py-2">
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              party.status === "active" ? "bg-green-100 text-green-700" : 
+                              party.status === "completed" ? "bg-blue-100 text-blue-700" : 
+                              "bg-gray-100 text-gray-700"
+                            }`}>
+                              {party.status || "Pending"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                );
+              })()}
             </div>
 
             {/* Party Performance */}
@@ -656,41 +677,42 @@ function Reports() {
 
             {/* Inventory Details */}
             <div>
-              <h4 className="font-semibold text-lg mb-3 text-slate-700">Inventory Details</h4>
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-slate-100">
-                    <th className="border border-slate-300 px-4 py-2 text-left">Party Name</th>
-                    <th className="border border-slate-300 px-4 py-2 text-left">Order Name</th>
-                    <th className="border border-slate-300 px-4 py-2 text-left">Process Name</th>
-                    <th className="border border-slate-300 px-4 py-2 text-left">Quantity</th>
-                    <th className="border border-slate-300 px-4 py-2 text-left">Unit</th>
-                    <th className="border border-slate-300 px-4 py-2 text-left">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {inventory.map((item, index) => (
-                    <tr key={item.id} className={index % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                      <td className="border border-slate-300 px-4 py-2 font-medium">{item.party_name || "N/A"}</td>
-                      <td className="border border-slate-300 px-4 py-2">{item.order_name || "N/A"}</td>
-                      <td className="border border-slate-300 px-4 py-2">{item.process_name || "N/A"}</td>
-                      <td className="border border-slate-300 px-4 py-2">{item.quantity || 0}</td>
-                      <td className="border border-slate-300 px-4 py-2">{item.unit || "Pcs"}</td>
-                      <td className="border border-slate-300 px-4 py-2">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          item.status === "Available" ? "bg-green-100 text-green-700" : 
-                          item.status === "In Process" ? "bg-blue-100 text-blue-700" : 
-                          "bg-gray-100 text-gray-700"
-                        }`}>
-                          {item.status || "Pending"}
-                        </span>
-                      </td>
+              <h4 className="font-semibold text-lg mb-3 text-slate-700">Inventory Details ({inventory.length})</h4>
+              {inventory.length === 0 ? (
+                <p className="text-center text-slate-500 py-4">No inventory data available.</p>
+              ) : (
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100">
+                      <th className="border border-slate-300 px-4 py-2 text-left">Party Name</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Order Name</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Process Name</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Quantity</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Unit</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-              {inventory.length === 0 && (
-                <p className="text-center text-slate-500 py-4">No inventory data available</p>
+                  </thead>
+                  <tbody>
+                    {inventory.map((item, index) => (
+                      <tr key={item.id} className={index % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                        <td className="border border-slate-300 px-4 py-2 font-medium">{item.party_name || "N/A"}</td>
+                        <td className="border border-slate-300 px-4 py-2">{item.order_name || "N/A"}</td>
+                        <td className="border border-slate-300 px-4 py-2">{item.process_name || "N/A"}</td>
+                        <td className="border border-slate-300 px-4 py-2">{item.quantity || 0}</td>
+                        <td className="border border-slate-300 px-4 py-2">{item.unit || "Pcs"}</td>
+                        <td className="border border-slate-300 px-4 py-2">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            item.status === "Available" ? "bg-green-100 text-green-700" : 
+                            item.status === "In Process" ? "bg-blue-100 text-blue-700" : 
+                            "bg-gray-100 text-gray-700"
+                          }`}>
+                            {item.status || "Pending"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
             </div>
           </div>

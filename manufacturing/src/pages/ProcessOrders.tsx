@@ -5,8 +5,10 @@ import PageHeader from "@/components/PageHeader";
 import SectionCard from "@/components/SectionCard";
 import StatusBadge from "@/components/StatusBadge";
 import api from "@/api/api";
+import { useToast } from "@/contexts/ToastContext";
 
 function ProcessOrders() {
+  const { showToast } = useToast();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -19,7 +21,7 @@ function ProcessOrders() {
       setOrders(res.data.data);
     } catch (error) {
       console.error(error);
-      alert("Failed to fetch orders");
+      showToast("Failed to fetch orders", "error");
     } finally {
       setLoading(false);
     }

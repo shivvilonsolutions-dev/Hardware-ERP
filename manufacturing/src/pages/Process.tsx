@@ -17,9 +17,11 @@ import {
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "@/contexts/ToastContext";
 
 
 function Process() {
+  const { showToast } = useToast();
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -137,10 +139,10 @@ function Process() {
         await api.post("/process-sequences", payload);
       }
 
-      alert("Process sequences saved successfully!");
+      showToast("Process sequences saved successfully!");
     } catch (error) {
       console.error("Error saving process sequences:", error);
-      alert("Error saving process sequences");
+      showToast("Error saving process sequences", "error");
     }
   };
 
@@ -439,7 +441,7 @@ function Process() {
               status: "Available"
             };
             setInventoryItems([...inventoryItems, newItem]);
-            alert(`${totalExtra} items sent to inventory`);
+            showToast(`${totalExtra} items sent to inventory`);
           }}
           className="px-4 py-2 bg-green-600 text-white rounded-xl text-sm hover:bg-green-700"
         >

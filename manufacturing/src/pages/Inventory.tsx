@@ -6,6 +6,7 @@ import PrimaryButton from "@/components/PrimaryButton";
 import StatusBadge from "@/components/StatusBadge";
 import { useState, useEffect } from "react";
 import api from "@/api/api";
+import { useToast } from "@/contexts/ToastContext";
 
 import {
   Package,
@@ -47,7 +48,7 @@ const initialMaterials = [
 
 
 function Inventory() {
-
+  const { showToast } = useToast();
 
   const [editIndex, setEditIndex] =
   useState<number | null>(null);
@@ -365,7 +366,7 @@ const currentMaterials =
       !materialForm.unit ||
       !materialForm.availableStock
     ) {
-      alert("Please fill all fields");
+      showToast("Please fill all fields", "warning");
       return;
     }
 
@@ -412,7 +413,7 @@ console.log("Current Material Form:", materialForm);
   }
 );
 
-  alert("Material Updated Successfully");
+  showToast("Material Updated Successfully");
 
   await fetchMaterials();
 
@@ -438,11 +439,12 @@ console.log("Current Material Form:", materialForm);
         unit: materialForm.unit,
       });
 
-      alert("Material Added Successfully");
+      showToast("Material Added Successfully");
 
       await fetchMaterials();
 
       setMaterialForm({
+        id: null,
         name: "",
         unit: "",
         availableStock: "",
@@ -457,7 +459,7 @@ console.log("Current Material Form:", materialForm);
     console.log("Backend Error:", error.response.data);
   }
 
-  alert("Failed To Update Material");
+  showToast("Failed To Update Material", "error");
 }
 
   }}

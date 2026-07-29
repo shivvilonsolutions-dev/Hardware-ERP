@@ -5,9 +5,11 @@ import StatusBadge from "@/components/StatusBadge";
 import FormSelect from "@/components/FormSelect";
 import { useState, useEffect } from "react";
 import api from "@/api/api";
+import { useToast } from "@/contexts/ToastContext";
 
 
 function NewOrder() {
+  const { showToast } = useToast();
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -33,7 +35,7 @@ function NewOrder() {
 
   } catch (error) {
     console.error(error);
-    alert("Failed to fetch orders");
+    showToast("Failed to fetch orders", "error");
   } finally {
     setLoading(false);
   }
@@ -61,7 +63,7 @@ const handleSaveOrder = async () => {
     !formData.quantity ||
     !formData.deliveryLocation
   ) {
-    alert("Please fill all required fields");
+    showToast("Please fill all required fields", "warning");
     return;
   }
 
@@ -83,7 +85,7 @@ const handleSaveOrder = async () => {
 
     console.log("Order Saved", response.data);
 
-    alert("Order Saved Successfully");
+    showToast("Order Saved Successfully");
 
     await fetchOrders();
 
@@ -98,7 +100,7 @@ const handleSaveOrder = async () => {
 
   } catch (error) {
     console.error(error);
-    alert("Order Save Failed");
+    showToast("Order Save Failed", "error");
   }
 };
 

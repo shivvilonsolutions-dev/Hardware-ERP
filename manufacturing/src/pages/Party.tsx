@@ -7,9 +7,11 @@ import StatusBadge from "@/components/StatusBadge";
 import SectionCard from "@/components/SectionCard";
 import { useState, useEffect } from "react";
 import api from "@/api/api";
+import { useToast } from "@/contexts/ToastContext";
 
 
 function Party() {
+  const { showToast } = useToast();
 
 const [showForm, setShowForm] =
   useState(false);
@@ -101,7 +103,7 @@ const handleSaveParty = async () => {
   !newParty.quantity ||
   !newParty.size
 ) {
-  alert("Please fill all fields");
+  showToast("Please fill all fields", "warning");
   return;
 }
 
@@ -122,11 +124,11 @@ try {
   if (editIndex !== null) {
     // Update existing party
     response = await api.put(`/parties/${newParty.id}`, payload);
-    alert("Party Updated Successfully");
+    showToast("Party Updated Successfully");
   } else {
     // Create new party
     response = await api.post("/parties", payload);
-    alert("Party Saved Successfully");
+    showToast("Party Saved Successfully");
   }
 
   console.log("Party Response:", response.data);
@@ -147,7 +149,7 @@ try {
   fetchParties();
 } catch (error) {
   console.error(error);
-  alert("Failed to save party");
+  showToast("Failed to save party", "error");
 }
 };
 

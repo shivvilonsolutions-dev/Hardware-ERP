@@ -18,11 +18,13 @@ function NewOrder() {
     "XYZ Foods",
     "Patidar Group",
   ]);
+  const [brandNames, setBrandNames] = useState([]);
   const [productNames, setProductNames] = useState([
     "Product A",
     "Product B",
     "Product C",
   ]);
+  const [deliveryLocations, setDeliveryLocations] = useState([]);
 
   const fetchOrders = async () => {
   setLoading(true);
@@ -32,6 +34,17 @@ function NewOrder() {
     console.log("Orders API:", res.data);
 
     setOrders(res.data.data);
+
+    // Extract unique values for autocomplete
+    const uniqueClients = [...new Set(res.data.data.map((o: any) => o.client_name).filter(Boolean))] as string[];
+    const uniqueBrands = [...new Set(res.data.data.map((o: any) => o.brand_name).filter(Boolean))] as string[];
+    const uniqueProducts = [...new Set(res.data.data.map((o: any) => o.product_name).filter(Boolean))] as string[];
+    const uniqueLocations = [...new Set(res.data.data.map((o: any) => o.delivery_location).filter(Boolean))] as string[];
+
+    setClientNames(uniqueClients.length > 0 ? uniqueClients : ["ABC Industries", "XYZ Foods", "Patidar Group"]);
+    setBrandNames(uniqueBrands.length > 0 ? uniqueBrands : []);
+    setProductNames(uniqueProducts.length > 0 ? uniqueProducts : ["Product A", "Product B", "Product C"]);
+    setDeliveryLocations(uniqueLocations.length > 0 ? uniqueLocations : []);
 
   } catch (error) {
     console.error(error);
@@ -138,24 +151,21 @@ const handleSaveOrder = async () => {
   }}
 />
 
-<div>
-  <label className="block mb-2 font-medium">
-    Brand Name <span className="text-red-500">*</span>
-  </label>
-
-  <input
-  type="text"
-  placeholder="Enter Brand Name"
+<FormSelect
+  label="Brand Name"
+  required
   value={formData.brandName}
-  onChange={(e) =>
+  onChange={(value) =>
     setFormData({
       ...formData,
-      brandName: e.target.value,
+      brandName: value,
     })
   }
-  className="w-full border border-slate-200 rounded-xl px-4 py-3"
+  options={brandNames}
+  onAddOption={(newBrand) => {
+    setBrandNames([...brandNames, newBrand]);
+  }}
 />
-</div>
 
 <FormSelect
   label="Product Name"
@@ -212,7 +222,13 @@ const handleSaveOrder = async () => {
     })
   }
   className="w-full border border-slate-200 rounded-xl px-4 py-3"
+  list="delivery-locations"
 />
+<datalist id="delivery-locations">
+  {deliveryLocations.map((loc, idx) => (
+    <option key={idx} value={loc} />
+  ))}
+</datalist>
   </div>
 
   <div>

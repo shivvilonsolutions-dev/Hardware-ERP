@@ -429,19 +429,23 @@ function Process() {
 
       {Number(totalExtra) > 0 && (
         <button
-          onClick={() => {
+          onClick={async () => {
             const newItem = {
-              id: Date.now(),
-              partyName: order?.client_name || "Unknown",
-              orderName: order?.order_id_custom || "Unknown",
-              orderDate: new Date().toISOString().split('T')[0],
-              processName: "Process Surplus",
+              party_name: order?.client_name || "Unknown",
+              order_name: order?.order_id_custom || "Unknown",
+              order_date: new Date().toISOString().split('T')[0],
+              process_name: "Process Surplus",
               quantity: totalExtra,
               unit: "Pieces",
               status: "Available"
             };
-            setInventoryItems([...inventoryItems, newItem]);
-            showToast(`${totalExtra} items sent to inventory`);
+            try {
+              await api.post("/process-inventory", newItem);
+              showToast(`${totalExtra} items sent to inventory`);
+            } catch (error) {
+              console.error("Error sending to inventory:", error);
+              showToast("Failed to send to inventory", "error");
+            }
           }}
           className="px-4 py-2 bg-green-600 text-white rounded-xl text-sm hover:bg-green-700"
         >

@@ -23,28 +23,48 @@ function Reports() {
   const fetchOrders = async () => {
     try {
       const res = await api.get("/orders");
-      setOrders(res.data.data || []);
-      filterOrdersByDate(res.data.data || [], dateRange);
+      console.log("Orders response:", res.data);
+      if (res.data && res.data.success) {
+        setOrders(res.data.data || []);
+        filterOrdersByDate(res.data.data || [], dateRange);
+      } else {
+        setOrders([]);
+        setFilteredOrders([]);
+      }
     } catch (error) {
       console.error("Error fetching orders:", error);
+      setOrders([]);
+      setFilteredOrders([]);
     }
   };
 
   const fetchParties = async () => {
     try {
       const res = await api.get("/parties");
-      setParties(res.data.data || []);
+      console.log("Parties response:", res.data);
+      if (res.data && res.data.success) {
+        setParties(res.data.data || []);
+      } else {
+        setParties([]);
+      }
     } catch (error) {
       console.error("Error fetching parties:", error);
+      setParties([]);
     }
   };
 
   const fetchProcessSequences = async () => {
     try {
       const res = await api.get("/process-sequences");
-      setProcessSequences(res.data.data || []);
+      console.log("Process sequences response:", res.data);
+      if (res.data && res.data.success) {
+        setProcessSequences(res.data.data || []);
+      } else {
+        setProcessSequences([]);
+      }
     } catch (error) {
       console.error("Error fetching process sequences:", error);
+      setProcessSequences([]);
     }
   };
 
@@ -83,7 +103,7 @@ function Reports() {
     }
 
     const filtered = orderList.filter((order) => {
-      const orderDate = new Date(order.order_date);
+      const orderDate = order.order_date ? new Date(order.order_date) : new Date(order.created_at);
       return orderDate >= startDate && orderDate <= endDate;
     });
 
@@ -122,9 +142,9 @@ function Reports() {
   // Calculate advanced analytics
   const calculateAnalytics = () => {
     // Orders per party
-    const ordersPerParty = {};
-    parties.forEach(party => {
-      if (filteredOrders.some(o => o.order_id_custom === party.current_order)) {
+    const ordersPerParty: any = {};
+    parties.forEach((party: any) => {
+      if (filteredOrders.some((o: any) => o.order_id_custom === party.current_order)) {
         if (!ordersPerParty[party.party_name]) {
           ordersPerParty[party.party_name] = 0;
         }
@@ -133,9 +153,9 @@ function Reports() {
     });
 
     // Processes per party
-    const processesPerParty = {};
-    parties.forEach(party => {
-      if (filteredOrders.some(o => o.order_id_custom === party.current_order)) {
+    const processesPerParty: any = {};
+    parties.forEach((party: any) => {
+      if (filteredOrders.some((o: any) => o.order_id_custom === party.current_order)) {
         if (!processesPerParty[party.party_name]) {
           processesPerParty[party.party_name] = 0;
         }
@@ -144,10 +164,10 @@ function Reports() {
     });
 
     // Order completion time (days)
-    const orderCompletionTimes = filteredOrders.map(order => {
-      const orderDate = new Date(order.order_date);
+    const orderCompletionTimes = filteredOrders.map((order: any) => {
+      const orderDate = order.order_date ? new Date(order.order_date) : new Date(order.created_at);
       const now = new Date();
-      const daysDiff = Math.floor((now - orderDate) / (1000 * 60 * 60 * 24));
+      const daysDiff = Math.floor((now.getTime() - orderDate.getTime()) / (1000 * 60 * 60 * 24));
       return {
         orderId: order.order_id_custom,
         days: daysDiff,
@@ -635,20 +655,19 @@ function Reports() {
           <div className="text-center py-10 text-slate-500">No orders found in selected date range</div>
         ) : (
           <div className="bg-slate-50 rounded-xl px-4 py-4">
-            <div className="grid grid-cols-7 gap-4 text-sm font-semibold text-slate-600">
+            <div className="grid grid-cols-6 gap-4 text-sm font-semibold text-slate-600">
               <div>Order ID</div>
               <div>Client Name</div>
               <div>Brand</div>
               <div>Product</div>
               <div>Quantity</div>
               <div>Status</div>
-              <div>Action</div>
             </div>
 
             {filteredOrders.map((order) => (
               <div
                 key={order.id}
-                className="grid grid-cols-7 gap-4 py-4 px-2 border-b border-slate-100 items-center"
+                className="grid grid-cols-6 gap-4 py-4 px-2 border-b border-slate-100 items-center"
               >
                 <div>{order.order_id_custom}</div>
                 <div>{order.client_name}</div>
@@ -660,14 +679,6 @@ function Reports() {
                     text={order.status}
                     color={order.status === "Pending" ? "orange" : "green"}
                   />
-                </div>
-                <div>
-                  <button
-                    onClick={() => navigate(`/report/${order.order_id_custom}`)}
-                    className="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700"
-                  >
-                    View Report
-                  </button>
                 </div>
               </div>
             ))}

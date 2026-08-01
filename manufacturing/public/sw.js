@@ -1,9 +1,10 @@
-const CACHE_NAME = "hardware-erp-v1";
+const CACHE_NAME = "hardware-erp-v3";
 const urlsToCache = [
   "/",
   "/manifest.json",
   "/favicon.svg",
   "/icons.svg",
+  "/logo.png",
 ];
 
 self.addEventListener("install", (event) => {

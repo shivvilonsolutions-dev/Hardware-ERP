@@ -4,7 +4,7 @@ const PROCESS_TYPES = {
     name: "Basic Process",
     fields: [
       { key: "partyName", label: "Party Name", type: "select" },
-      { key: "unit", label: "Unit", type: "radio", options: ["KG", "Pieces"] },
+      // { key: "unit", label: "Unit", type: "radio", options: ["KG", "Pieces"] },
       { key: "kg", label: "KG (Raw Material)", type: "number", editable: true },
       { key: "pieces", label: "Pieces Required", type: "number", editable: true },
       { key: "inputQty", label: "Input Qty", type: "number", editable: true },

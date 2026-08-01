@@ -9,9 +9,9 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/favicon.svg",
+      "src": "/logo.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ],
@@ -22,21 +22,21 @@
       "short_name": "Order",
       "description": "Create a new order",
       "url": "/new-order",
-      "icons": [{ "src": "/favicon.svg", "sizes": "512x512" }]
+      "icons": [{ "src": "/logo.png", "sizes": "512x512" }]
     },
     {
       "name": "Process",
       "short_name": "Process",
       "description": "Manage manufacturing process",
       "url": "/process",
-      "icons": [{ "src": "/favicon.svg", "sizes": "512x512" }]
+      "icons": [{ "src": "/logo.png", "sizes": "512x512" }]
     },
     {
       "name": "Reports",
       "short_name": "Reports",
       "description": "View reports and analytics",
       "url": "/reports",
-      "icons": [{ "src": "/favicon.svg", "sizes": "512x512" }]
+      "icons": [{ "src": "/logo.png", "sizes": "512x512" }]
     }
   ]
 }

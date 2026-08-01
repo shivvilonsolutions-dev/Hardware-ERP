@@ -14,8 +14,10 @@ import {
   AlertCircle,
   PackageX,
   Pencil,
+  Eye,
   ArrowUpRight,
   ArrowDownLeft,
+  Trash2,
 } from "lucide-react";
 
 
@@ -64,7 +66,22 @@ function Inventory() {
   name: "",
   unit: "",
   availableStock: "",
+  lowStockThreshold: "30",
 });
+
+const [processInventoryForm, setProcessInventoryForm] = useState({
+  id: null,
+  partyName: "",
+  orderName: "",
+  orderDate: "",
+  processName: "",
+  quantity: "",
+  unit: "",
+  status: ""
+});
+
+const [showProcessInventoryForm, setShowProcessInventoryForm] = useState(false);
+const [editProcessInventoryIndex, setEditProcessInventoryIndex] = useState(null);
 
 const itemsPerPage = 5;
 
@@ -123,6 +140,7 @@ const [inventoryHistory, setInventoryHistory] = useState([
 
   useEffect(() => {
   fetchMaterials();
+  fetchProcessInventory();
 }, []);
 
 const fetchMaterials = async () => {
@@ -137,13 +155,105 @@ const fetchMaterials = async () => {
     id: item.id,
     name: item.material_name,
     unit: item.unit,
-    availableStock: item.stock_quantity,
+    availableStock: item.stock_quantity || 0,
     reservedStock:
       item.reserved_stock ?? 0,
+    lowStockThreshold: item.low_stock_threshold || 30,
   }))
 );
   } catch (error) {
     console.error(error);
+  }
+};
+
+const fetchProcessInventory = async () => {
+  try {
+    const res = await api.get("/process-inventory");
+    console.log("Process Inventory API:", res.data);
+    if (res.data && res.data.success) {
+      setProcessInventory(res.data.data.map((item: any) => ({
+        id: item.id,
+        partyName: item.party_name,
+        orderName: item.order_name,
+        orderDate: item.order_date,
+        processName: item.process_name,
+        quantity: item.quantity,
+        unit: item.unit,
+        status: item.status
+      })));
+    }
+  } catch (error) {
+    console.error("Error fetching process inventory:", error);
+  }
+};
+
+const handleEditProcessInventory = (item: any, index: number) => {
+  setProcessInventoryForm({
+    id: item.id,
+    partyName: item.partyName,
+    orderName: item.orderName,
+    orderDate: item.orderDate,
+    processName: item.processName,
+    quantity: item.quantity.toString(),
+    unit: item.unit,
+    status: item.status
+  });
+  setEditProcessInventoryIndex(index);
+  setShowProcessInventoryForm(true);
+};
+
+const handleDeleteProcessInventory = async (id: number) => {
+  try {
+    await api.delete(`/process-inventory/${id}`);
+    showToast("Process inventory item deleted successfully");
+    await fetchProcessInventory();
+  } catch (error) {
+    console.error("Error deleting process inventory item:", error);
+    showToast("Failed to delete item", "error");
+  }
+};
+
+const handleSaveProcessInventory = async () => {
+  try {
+    if (editProcessInventoryIndex !== null) {
+      await api.put(`/process-inventory/${processInventoryForm.id}`, {
+        party_name: processInventoryForm.partyName,
+        order_name: processInventoryForm.orderName,
+        order_date: processInventoryForm.orderDate,
+        process_name: processInventoryForm.processName,
+        quantity: Number(processInventoryForm.quantity),
+        unit: processInventoryForm.unit,
+        status: processInventoryForm.status
+      });
+      showToast("Process inventory item updated successfully");
+    } else {
+      await api.post("/process-inventory", {
+        party_name: processInventoryForm.partyName,
+        order_name: processInventoryForm.orderName,
+        order_date: processInventoryForm.orderDate,
+        process_name: processInventoryForm.processName,
+        quantity: Number(processInventoryForm.quantity),
+        unit: processInventoryForm.unit,
+        status: processInventoryForm.status
+      });
+      showToast("Process inventory item added successfully");
+    }
+    await fetchProcessInventory();
+    setShowProcessInventoryForm(false);
+    setEditProcessInventoryIndex(null);
+    setProcessInventoryForm({
+      id: null,
+      partyName: "",
+      orderName: "",
+      orderDate: "",
+      processName: "",
+      quantity: "",
+      unit: "",
+      status: ""
+    });
+  } catch (error) {
+    console.error("Error saving process inventory item:", error);
+    showToast("Failed to save item", "error");
   }
 };
 
@@ -183,7 +293,7 @@ const currentMaterials =
 
   const lowStockItems = materials.filter(
     (item) =>
-      item.availableStock < 30 &&
+      item.availableStock < (item.lowStockThreshold || 30) &&
       item.availableStock > 0
   ).length;
 
@@ -347,6 +457,25 @@ const currentMaterials =
 />
       </div>
 
+      <div>
+        <label className="block mb-2 font-medium">
+          Low Stock Threshold
+        </label>
+
+        <input
+  type="number"
+  placeholder="Enter Low Stock Threshold"
+  value={materialForm.lowStockThreshold}
+  onChange={(e) =>
+    setMaterialForm({
+      ...materialForm,
+      lowStockThreshold: e.target.value,
+    })
+  }
+  className="w-full border border-slate-200 rounded-xl px-4 py-3"
+/>
+      </div>
+
     </div>
 
     <div className="flex justify-end gap-3 mt-6">
@@ -383,10 +512,11 @@ console.log("Request Body:", {
   total_stock: Number(
     materialForm.availableStock
   ),
+  low_stock_threshold: Number(materialForm.lowStockThreshold || 30),
   status:
     Number(materialForm.availableStock) === 0
       ? "Out Of Stock"
-      : Number(materialForm.availableStock) < 30
+      : Number(materialForm.availableStock) < Number(materialForm.lowStockThreshold || 30)
       ? "Low Stock"
       : "In Stock",
 });
@@ -404,10 +534,11 @@ console.log("Current Material Form:", materialForm);
     total_stock: Number(
       materialForm.availableStock
     ),
+    low_stock_threshold: Number(materialForm.lowStockThreshold || 30),
     status:
       Number(materialForm.availableStock) === 0
         ? "Out Of Stock"
-        : Number(materialForm.availableStock) < 30
+        : Number(materialForm.availableStock) < Number(materialForm.lowStockThreshold || 30)
         ? "Low Stock"
         : "In Stock",
   }
@@ -424,6 +555,7 @@ console.log("Current Material Form:", materialForm);
     name: "",
     unit: "",
     availableStock: "",
+    lowStockThreshold: "30",
   });
 
   setShowForm(false);
@@ -437,6 +569,7 @@ console.log("Current Material Form:", materialForm);
           materialForm.availableStock
         ),
         unit: materialForm.unit,
+        low_stock_threshold: Number(materialForm.lowStockThreshold || 30),
       });
 
       showToast("Material Added Successfully");
@@ -448,6 +581,7 @@ console.log("Current Material Form:", materialForm);
         name: "",
         unit: "",
         availableStock: "",
+        lowStockThreshold: "30",
       });
 
       setShowForm(false);
@@ -531,7 +665,7 @@ console.log("Current Material Form:", materialForm);
 
 </div>
 
-   <div>
+   <div className="flex gap-2">
 
   <button
   onClick={() => {
@@ -542,6 +676,7 @@ console.log("Current Material Form:", materialForm);
       unit: item.unit,
       availableStock:
         item.availableStock.toString(),
+      lowStockThreshold: (item.lowStockThreshold || 30).toString(),
     });
 
     console.log("Setting Form ID:", item.id);
@@ -555,6 +690,19 @@ console.log("Current Material Form:", materialForm);
 >
 
     <Pencil size={16} />
+
+  </button>
+
+  <button
+  onClick={() => {
+    console.log("View Item:", item);
+    // Add view functionality here
+    showToast(`Viewing ${item.name}`, "info");
+  }}
+  className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center hover:bg-slate-200"
+>
+
+    <Eye size={16} />
 
   </button>
 
@@ -648,12 +796,20 @@ console.log("Current Material Form:", materialForm);
           />
         </div>
 
-        <div>
+        <div className="flex gap-2">
           <button
-            className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center hover:bg-blue-200 text-blue-600"
-            title="Use in Process"
+            onClick={() => handleEditProcessInventory(item, processInventory.indexOf(item))}
+            className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center hover:bg-slate-200"
+            title="Edit"
           >
-            <ArrowDownLeft size={16} />
+            <Pencil size={16} />
+          </button>
+          <button
+            onClick={() => handleDeleteProcessInventory(item.id)}
+            className="w-9 h-9 rounded-lg bg-red-100 flex items-center justify-center hover:bg-red-200 text-red-600"
+            title="Delete"
+          >
+            <Trash2 size={16} />
           </button>
         </div>
 
@@ -661,6 +817,114 @@ console.log("Current Material Form:", materialForm);
     ))}
 
   </div>
+
+  {showProcessInventoryForm && (
+    <div className="bg-slate-50 rounded-2xl p-6 mt-6">
+      <h3 className="text-lg font-semibold mb-4">
+        {editProcessInventoryIndex !== null ? "Edit Process Inventory Item" : "Add Process Inventory Item"}
+      </h3>
+      <div className="grid grid-cols-3 gap-6">
+        <div>
+          <label className="block mb-2 font-medium">Party Name</label>
+          <input
+            type="text"
+            placeholder="Enter Party Name"
+            value={processInventoryForm.partyName}
+            onChange={(e) => setProcessInventoryForm({ ...processInventoryForm, partyName: e.target.value })}
+            className="w-full border border-slate-200 rounded-xl px-4 py-3"
+          />
+        </div>
+        <div>
+          <label className="block mb-2 font-medium">Order Name</label>
+          <input
+            type="text"
+            placeholder="Enter Order Name"
+            value={processInventoryForm.orderName}
+            onChange={(e) => setProcessInventoryForm({ ...processInventoryForm, orderName: e.target.value })}
+            className="w-full border border-slate-200 rounded-xl px-4 py-3"
+          />
+        </div>
+        <div>
+          <label className="block mb-2 font-medium">Order Date</label>
+          <input
+            type="date"
+            value={processInventoryForm.orderDate}
+            onChange={(e) => setProcessInventoryForm({ ...processInventoryForm, orderDate: e.target.value })}
+            className="w-full border border-slate-200 rounded-xl px-4 py-3"
+          />
+        </div>
+        <div>
+          <label className="block mb-2 font-medium">Process Name</label>
+          <input
+            type="text"
+            placeholder="Enter Process Name"
+            value={processInventoryForm.processName}
+            onChange={(e) => setProcessInventoryForm({ ...processInventoryForm, processName: e.target.value })}
+            className="w-full border border-slate-200 rounded-xl px-4 py-3"
+          />
+        </div>
+        <div>
+          <label className="block mb-2 font-medium">Quantity</label>
+          <input
+            type="number"
+            placeholder="Enter Quantity"
+            value={processInventoryForm.quantity}
+            onChange={(e) => setProcessInventoryForm({ ...processInventoryForm, quantity: e.target.value })}
+            className="w-full border border-slate-200 rounded-xl px-4 py-3"
+          />
+        </div>
+        <div>
+          <label className="block mb-2 font-medium">Unit</label>
+          <input
+            type="text"
+            placeholder="Enter Unit"
+            value={processInventoryForm.unit}
+            onChange={(e) => setProcessInventoryForm({ ...processInventoryForm, unit: e.target.value })}
+            className="w-full border border-slate-200 rounded-xl px-4 py-3"
+          />
+        </div>
+        <div>
+          <label className="block mb-2 font-medium">Status</label>
+          <select
+            value={processInventoryForm.status}
+            onChange={(e) => setProcessInventoryForm({ ...processInventoryForm, status: e.target.value })}
+            className="w-full border border-slate-200 rounded-xl px-4 py-3"
+          >
+            <option value="Available">Available</option>
+            <option value="Used">Used</option>
+            <option value="Reserved">Reserved</option>
+          </select>
+        </div>
+      </div>
+      <div className="flex justify-end gap-3 mt-6">
+        <button
+          onClick={() => {
+            setShowProcessInventoryForm(false);
+            setEditProcessInventoryIndex(null);
+            setProcessInventoryForm({
+              id: null,
+              partyName: "",
+              orderName: "",
+              orderDate: "",
+              processName: "",
+              quantity: "",
+              unit: "",
+              status: ""
+            });
+          }}
+          className="px-5 py-2 border rounded-xl"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSaveProcessInventory}
+          className="px-5 py-2 bg-blue-600 text-white rounded-xl"
+        >
+          {editProcessInventoryIndex !== null ? "Update" : "Save"}
+        </button>
+      </div>
+    </div>
+  )}
 
 </SectionCard>
 

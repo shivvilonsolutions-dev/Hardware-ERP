@@ -44,61 +44,105 @@ function Process() {
     "Party D",
   ]);
 
+  const [parties, setParties] = useState<any[]>([]);
+
   // Fetch parties from API
   const fetchParties = async () => {
     try {
       const response = await api.get("/parties");
-      console.log("Parties API:", response.data);
       if (response.data && response.data.success) {
-        const partyNames = response.data.data.map((item) => item.party_name || "");
-        setPartyNames(partyNames);
+        setParties(response.data.data);
+        const names = response.data.data.map((item: any) => item.party_name || "");
+        setPartyNames(names);
+        return response.data.data;
       }
     } catch (error) {
       console.error("Error fetching parties:", error);
     }
+    return [];
   };
 
   useEffect(() => {
-    fetchParties();
-    if (order?.order_id_custom) {
-      fetchProcessSequences(order.order_id_custom);
-    }
+    const initData = async () => {
+      const partiesData = await fetchParties();
+      if (order?.order_id_custom) {
+        await fetchProcessSequences(order.order_id_custom, partiesData);
+      }
+    };
+    initData();
   }, [order]);
 
   // Fetch existing process sequences from API and update default processes
-  const fetchProcessSequences = async (orderId: string) => {
+  const fetchProcessSequences = async (orderId: string, currentParties: any[]) => {
     try {
       const response = await api.get(`/process-sequences/order/${orderId}`);
       if (response.data?.success && response.data.data.length > 0) {
-        // Update default processes with saved data
         const savedSequences = response.data.data;
-        setProductProcessSequence((prev) => 
-          prev.map((step, index) => {
-            const saved = savedSequences[index];
-            if (saved) {
-              return {
-                ...step,
-                partyName: saved.party_name || "",
-                fields: {
-                  ...step.fields,
-                  inputQty: saved.input_qty || step.fields.inputQty,
-                  output: saved.output_qty || step.fields.output,
-                  rejection: saved.rejection || step.fields.rejection,
-                  extra: saved.extra || step.fields.extra,
-                  size: saved.size || step.fields.size,
-                  size_unit: saved.size_unit || step.fields.size_unit || "Pieces",
-                  kg: saved.kg || step.fields.kg || 0,
-                  pieces: saved.pieces || step.fields.pieces || 0,
-                  rate: saved.rate || step.fields.rate,
-                  totalCost: saved.total_cost || step.fields.totalCost,
-                  totalBoxes: saved.total_boxes || step.fields.totalBoxes,
-                  cutting: saved.cutting || step.fields.cutting,
-                }
-              };
-            }
-            return step;
-          })
-        );
+        
+        // Reconstruct the sequence array based on what's in the database
+        const newSequence = savedSequences.map((saved: any) => {
+          // Find the party name from the party_id
+          const matchedParty = currentParties.find(p => p.id === saved.party_id);
+          
+          // Only include fields that make sense for this process type
+          const fields: any = {};
+          
+          // Map database columns back to frontend field keys
+          const dbToFieldMap: Record<string, any> = {
+            inputQty: Number(saved.input_qty) || 0,
+            output: Number(saved.output_qty) || 0,
+            rejection: Number(saved.rejection) || 0,
+            extra: Number(saved.extra) || 0,
+            size: saved.size || "",
+            size_unit: saved.size_unit || "Pieces",
+            kg: Number(saved.kg) || 0,
+            pieces: Number(saved.pieces) || 0,
+            rate: Number(saved.rate) || 0,
+            totalCost: Number(saved.total_cost) || 0,
+            totalBoxes: Number(saved.total_boxes) || 0,
+            cutting: Number(saved.cutting) || 0,
+            hole: Number(saved.hole) || 0,
+            finishing: saved.finishing || "",
+            piecesPerBox: Number(saved.pieces_per_box) || 0,
+          };
+
+          const processConfig = PROCESS_TYPES[saved.process_type as keyof typeof PROCESS_TYPES];
+          
+          if (processConfig) {
+            // It's a standard process, so only pick its specific fields
+            processConfig.fields.forEach(f => {
+              if (f.key !== "partyName") {
+                fields[f.key] = dbToFieldMap[f.key];
+              }
+            });
+          } else if (saved.process_type && saved.process_type.startsWith("custom:")) {
+            // It's a custom process, and we saved the exact fields inside the process_type string!
+            const selectedKeys = saved.process_type.split(":")[1].split(",");
+            selectedKeys.forEach((key: string) => {
+              if (dbToFieldMap[key] !== undefined) {
+                fields[key] = dbToFieldMap[key];
+              }
+            });
+          } else {
+            // Fallback for old custom processes
+            const basicKeys = ["inputQty", "output", "rejection", "extra"];
+            Object.keys(dbToFieldMap).forEach(key => {
+              if (basicKeys.includes(key) || (typeof dbToFieldMap[key] === "number" && dbToFieldMap[key] > 0) || (typeof dbToFieldMap[key] === "string" && dbToFieldMap[key] !== "" && dbToFieldMap[key] !== "Pieces")) {
+                fields[key] = dbToFieldMap[key];
+              }
+            });
+          }
+          
+          return {
+            id: `process-${saved.id}`,
+            processName: saved.process_name || "",
+            processType: saved.process_type || "basic",
+            partyName: matchedParty ? matchedParty.party_name : "",
+            fields: fields
+          };
+        });
+        
+        setProductProcessSequence(newSequence);
       }
     } catch (error) {
       console.error("Error fetching process sequences:", error);
@@ -106,7 +150,7 @@ function Process() {
   };
 
   // Save process sequences to API
-  const saveProcessSequences = async () => {
+  const saveProcessSequences = async (sequenceToSave = productProcessSequence) => {
     try {
       // First delete existing sequences for this order
       if (order?.order_id_custom) {
@@ -114,8 +158,8 @@ function Process() {
       }
 
       // Then save new sequences
-      for (let i = 0; i < productProcessSequence.length; i++) {
-        const step = productProcessSequence[i];
+      for (let i = 0; i < sequenceToSave.length; i++) {
+        const step = sequenceToSave[i];
         const payload = {
           order_id: order?.order_id_custom,
           process_name: step.processName,
@@ -237,6 +281,21 @@ function Process() {
     );
   };
 
+  // Handle adding a new party
+  const handleAddParty = async (partyName: string) => {
+    try {
+      const response = await api.post("/parties", { party_name: partyName });
+      if (response.data && response.data.success) {
+        setParties((prev) => [...prev, response.data.data]);
+        setPartyNames((prev) => [...prev, partyName]);
+        showToast("Party added successfully!");
+      }
+    } catch (error) {
+      console.error("Error adding party:", error);
+      showToast("Error adding party", "error");
+    }
+  };
+
   // Handle inventory selection
   const handleInventorySelect = (stepId: string, item: any) => {
     handleFieldChange(stepId, "inputQty", item.quantity);
@@ -249,10 +308,10 @@ function Process() {
     let finalOutput = 0;
 
     productProcessSequence.forEach((step) => {
-      totalExtra += step.fields.extra || 0;
-      totalRejection += step.fields.rejection || 0;
+      totalExtra += Number(step.fields.extra) || 0;
+      totalRejection += Number(step.fields.rejection) || 0;
       if (step.processType === "packing") {
-        finalOutput = step.fields.totalBoxes || 0;
+        finalOutput = Number(step.fields.totalBoxes) || 0;
       }
     });
 
@@ -375,8 +434,13 @@ function Process() {
       </div>
     </div>
 
-    <div className="flex justify-end gap-3">
-
+    <div className="flex justify-end gap-3 mt-4">
+      <button 
+        onClick={() => saveProcessSequences()}
+        className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-medium shadow hover:bg-blue-700 transition-colors"
+      >
+        Save Process Details
+      </button>
     </div>
 
   </div>
@@ -399,6 +463,7 @@ function Process() {
         onFieldChange={handleFieldChange}
         onPartyChange={handlePartyChange}
         onInventorySelect={handleInventorySelect}
+        onAddParty={handleAddParty}
       />
       {index < productProcessSequence.length - 1 && (
         <div className="border-t border-slate-200 my-8"></div>
@@ -586,6 +651,9 @@ function Process() {
             return step;
           });
           setProductProcessSequence(updatedSequence);
+          
+          // Save to backend immediately
+          saveProcessSequences(updatedSequence);
           
           // Deduct inventory items that are used
           sequence.forEach((step) => {

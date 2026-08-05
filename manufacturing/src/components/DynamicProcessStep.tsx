@@ -8,8 +8,8 @@ const ALL_FIELDS = [
   { key: "size", label: "Size", type: "text" },
   { key: "size_unit", label: "Size Unit", type: "select", options: ["Pieces", "Inches"] },
   { key: "kg", label: "KG (Raw Material)", type: "number" },
-  { key: "pieces", label: "Pieces Required", type: "number" },
-  { key: "inputQty", label: "Input Qty", type: "number" },
+  // { key: "pieces", label: "Pieces Required", type: "number" },
+  { key: "inputQty", label: "Pieces Required", type: "number" },
   { key: "rejection", label: "Rejection", type: "number" },
   { key: "extra", label: "Extra (To Inventory)", type: "number" },
   { key: "output", label: "Output To Next Process", type: "number", calculated: true },
@@ -32,6 +32,7 @@ interface DynamicProcessStepProps {
   onFieldChange: (stepId: string, fieldKey: string, value: any) => void;
   onPartyChange: (stepId: string, partyName: string) => void;
   onInventorySelect: (stepId: string, item: any) => void;
+  onAddParty?: (partyName: string) => void;
 }
 
 function DynamicProcessStep({
@@ -43,11 +44,12 @@ function DynamicProcessStep({
   onFieldChange,
   onPartyChange,
   onInventorySelect,
+  onAddParty,
 }: DynamicProcessStepProps) {
   const processConfig = PROCESS_TYPES[step.processType as keyof typeof PROCESS_TYPES];
 
   // For custom processes, use the fields directly from step.fields
-  const fields = step.processType === "custom"
+  const fields = step.processType.startsWith("custom")
     ? Object.keys(step.fields).map(key => {
       const field = ALL_FIELDS.find(f => f.key === key);
       return field || { key, label: key, type: "text" };
@@ -87,6 +89,7 @@ function DynamicProcessStep({
             options={partyNames}
             value={step.partyName || ""}
             onChange={(value) => onPartyChange(step.id, value)}
+            onAddOption={onAddParty}
             placeholder="Select Party"
           />
         </div>

@@ -102,19 +102,26 @@ function Report() {
     let totalExtra = 0;
     let totalRejection = 0;
     let finalOutput = 0;
+    let totalOrderCost = 0;
 
     processSequence.forEach((step: any) => {
-      totalExtra += step.fields.extra || 0;
-      totalRejection += step.fields.rejection || 0;
+      totalExtra += Number(step.fields.extra) || 0;
+      totalRejection += Number(step.fields.rejection) || 0;
+      
+      const rate = Number(step.fields.rate) || 0;
+      const inputQty = Number(step.fields.inputQty) || 0;
+      const stepCost = Number(step.fields.totalCost) || (rate * inputQty);
+      totalOrderCost += stepCost;
+
       if (step.processType === "packing") {
-        finalOutput = step.fields.totalBoxes || 0;
+        finalOutput = Number(step.fields.totalBoxes) || 0;
       }
     });
 
-    return { totalExtra, totalRejection, finalOutput };
+    return { totalExtra, totalRejection, finalOutput, totalOrderCost };
   };
 
-  const { totalExtra, totalRejection, finalOutput } = calculateTotals();
+  const { totalExtra, totalRejection, finalOutput, totalOrderCost } = calculateTotals();
 
   const colors = ["green", "blue", "violet", "pink", "indigo", "orange", "teal"];
 
@@ -265,13 +272,15 @@ function Report() {
                     {step.fields.rate !== undefined && (
                       <div>
                         <span className="text-slate-500">Rate:</span>
-                        <span className="ml-2 font-medium">{step.fields.rate}</span>
+                        <span className="ml-2 font-medium">₹{Number(step.fields.rate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       </div>
                     )}
-                    {step.fields.totalCost !== undefined && (
+                    {(step.fields.totalCost !== undefined || step.fields.rate !== undefined) && (
                       <div>
                         <span className="text-slate-500">Total Cost:</span>
-                        <span className="ml-2 font-medium">{step.fields.totalCost}</span>
+                        <span className="ml-2 font-medium">
+                          ₹{Number(step.fields.totalCost || (step.fields.rate * step.fields.inputQty) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
                       </div>
                     )}
                     {step.fields.totalBoxes !== undefined && (
@@ -294,7 +303,7 @@ function Report() {
           <Archive size={24} className="text-green-600" />
           Calculations Summary
         </h2>
-        <div className="grid grid-cols-3 gap-8">
+        <div className="grid grid-cols-4 gap-6">
           <div className="flex items-center gap-4 bg-orange-50 rounded-xl p-6 border border-orange-200">
             <Package size={32} className="text-orange-600" />
             <div>
@@ -314,6 +323,13 @@ function Report() {
             <div>
               <p className="text-sm text-slate-500">Final Output (Boxes)</p>
               <h2 className="text-3xl font-bold text-green-700">{finalOutput} <span className="text-lg font-normal">Box</span></h2>
+            </div>
+          </div>
+          <div className="flex items-center gap-4 bg-blue-50 rounded-xl p-6 border border-blue-200">
+            <TrendingUp size={32} className="text-blue-600" />
+            <div>
+              <p className="text-sm text-slate-500">Total Process Cost</p>
+              <h2 className="text-3xl font-bold text-blue-700">₹{totalOrderCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h2>
             </div>
           </div>
         </div>

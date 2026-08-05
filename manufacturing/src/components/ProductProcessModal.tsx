@@ -201,8 +201,8 @@ function ProductProcessModal({
     { key: "size", label: "Size", type: "text" },
     { key: "size_unit", label: "Size Unit", type: "select", options: ["Pieces", "Inches"] },
     { key: "kg", label: "KG (Raw Material)", type: "number" },
-    { key: "pieces", label: "Pieces Required", type: "number" },
-    { key: "inputQty", label: "Input Qty", type: "number" },
+    // { key: "pieces", label: "Pieces Required", type: "number" },
+    { key: "inputQty", label: "Pieces Required", type: "number" },
     { key: "rejection", label: "Rejection", type: "number" },
     { key: "extra", label: "Extra (To Inventory)", type: "number" },
     { key: "output", label: "Output To Next Process", type: "number", calculated: true },
@@ -305,7 +305,7 @@ function ProductProcessModal({
             return {
               ...step,
               processName: newProcessName.trim(),
-              processType: "custom",
+              processType: `custom:${selectedFields.join(',')}`,
               fields: updatedFields,
             };
           })
@@ -325,7 +325,7 @@ function ProductProcessModal({
         const newStep: ProcessStep = {
           id: `process-${Date.now()}`,
           processName: newProcessName.trim(),
-          processType: "custom",
+          processType: `custom:${selectedFields.join(',')}`,
           partyName: "",
           fields: initialFields,
         };

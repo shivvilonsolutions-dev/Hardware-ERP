@@ -134,7 +134,15 @@ function Reports() {
     const totalParties = parties.length;
     const totalProcesses = processSequences.length;
 
-    return { totalOrders, totalQuantity, completedOrders, pendingOrders, totalParties, totalProcesses };
+    const filteredProcessSequences = processSequences.filter((ps: any) =>
+      filteredOrders.some((order: any) => order.order_id_custom === ps.order_id)
+    );
+    const totalCost = filteredProcessSequences.reduce((sum, ps: any) => {
+      const cost = Number(ps.total_cost) || (Number(ps.rate || 0) * Number(ps.input_qty || 0)) || 0;
+      return sum + cost;
+    }, 0);
+
+    return { totalOrders, totalQuantity, completedOrders, pendingOrders, totalParties, totalProcesses, totalCost };
   };
 
   const summary = calculateSummary();
@@ -177,7 +185,7 @@ function Reports() {
 
     // Average completion time
     const completedOrders = orderCompletionTimes.filter(o => o.status === "Completed");
-    const avgCompletionTime = completedOrders.length > 0 
+    const avgCompletionTime = completedOrders.length > 0
       ? Math.round(completedOrders.reduce((sum, o) => sum + o.days, 0) / completedOrders.length)
       : 0;
 
@@ -240,24 +248,24 @@ function Reports() {
   const exportToPDF = () => {
     const doc = new jsPDF();
     let currentY = 22;
-    
+
     // Add title
     doc.setFontSize(18);
     doc.text("Manufacturing Report", 14, currentY);
     currentY += 10;
-    
+
     // Add date range info
     doc.setFontSize(12);
     doc.text(`Period: Custom Range (${customStartDate} to ${customEndDate})`, 14, currentY);
     currentY += 8;
     doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, currentY);
     currentY += 15;
-    
+
     // Summary section
     doc.setFontSize(14);
     doc.text("Summary", 14, currentY);
     currentY += 5;
-    
+
     autoTable(doc, {
       startY: currentY,
       head: [["Total Orders", "Total Quantity", "Completed", "Pending", "Total Parties", "Total Processes"]],
@@ -272,7 +280,7 @@ function Reports() {
       theme: 'grid',
       headStyles: { fillColor: [99, 102, 241] }
     });
-    
+
     // Orders table
     doc.addPage();
     currentY = 22;
@@ -282,7 +290,7 @@ function Reports() {
     doc.setFontSize(14);
     doc.text("Order Details", 14, currentY);
     currentY += 5;
-    
+
     const orderData = filteredOrders.map(order => [
       order.order_id_custom,
       order.client_name,
@@ -292,7 +300,7 @@ function Reports() {
       order.status,
       order.order_date || (order.created_at ? new Date(order.created_at).toLocaleDateString() : "N/A")
     ]);
-    
+
     autoTable(doc, {
       startY: currentY,
       head: [["Order ID", "Client", "Brand", "Product", "Quantity", "Status", "Date"]],
@@ -300,7 +308,7 @@ function Reports() {
       theme: 'grid',
       headStyles: { fillColor: [99, 102, 241] }
     });
-    
+
     // Process details
     doc.addPage();
     currentY = 22;
@@ -310,7 +318,7 @@ function Reports() {
     doc.setFontSize(14);
     doc.text("Process Details", 14, currentY);
     currentY += 5;
-    
+
     const processData = [];
     filteredOrders.forEach(order => {
       const orderParties = parties.filter(p => p.current_order === order.order_id_custom);
@@ -325,7 +333,7 @@ function Reports() {
         ]);
       });
     });
-    
+
     autoTable(doc, {
       startY: currentY,
       head: [["Order ID", "Process Name", "Party", "Quantity (Pcs)", "Size", "Status"]],
@@ -333,7 +341,7 @@ function Reports() {
       theme: 'grid',
       headStyles: { fillColor: [99, 102, 241] }
     });
-    
+
     // Party details
     doc.addPage();
     currentY = 22;
@@ -343,7 +351,7 @@ function Reports() {
     doc.setFontSize(14);
     doc.text("Party Details", 14, currentY);
     currentY += 5;
-    
+
     const partyData = parties.map(party => [
       party.party_name,
       party.current_order || "N/A",
@@ -352,7 +360,7 @@ function Reports() {
       party.size || "N/A",
       party.status || "Pending"
     ]);
-    
+
     autoTable(doc, {
       startY: currentY,
       head: [["Party Name", "Current Order", "Current Process", "Quantity (Pcs)", "Size", "Status"]],
@@ -360,7 +368,7 @@ function Reports() {
       theme: 'grid',
       headStyles: { fillColor: [99, 102, 241] }
     });
-    
+
     doc.save(`report_${customStartDate}_to_${customEndDate}.pdf`);
   };
 
@@ -381,11 +389,10 @@ function Reports() {
         <div className="flex gap-3 mb-4">
           <button
             onClick={() => setDateRange("custom")}
-            className={`px-4 py-2 rounded-lg ${
-              dateRange === "custom"
+            className={`px-4 py-2 rounded-lg ${dateRange === "custom"
                 ? "bg-violet-600 text-white"
                 : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
+              }`}
           >
             Custom Range
           </button>
@@ -486,7 +493,7 @@ function Reports() {
             {/* Summary Section */}
             <div className="mb-6">
               <h4 className="font-semibold text-lg mb-3 text-slate-700">Summary</h4>
-              <div className="grid grid-cols-5 gap-4 bg-slate-50 p-4 rounded-lg">
+              <div className="grid grid-cols-6 gap-4 bg-slate-50 p-4 rounded-lg">
                 <div className="text-center">
                   <p className="text-sm text-slate-600">Total Orders</p>
                   <p className="text-2xl font-bold text-blue-600">{summary.totalOrders}</p>
@@ -506,6 +513,10 @@ function Reports() {
                 <div className="text-center">
                   <p className="text-sm text-slate-600">Total Parties</p>
                   <p className="text-2xl font-bold text-pink-600">{summary.totalParties}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-slate-600">Total Cost</p>
+                  <p className="text-2xl font-bold text-teal-600">₹{summary.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
               </div>
             </div>
@@ -537,9 +548,8 @@ function Reports() {
                         <td className="border border-slate-300 px-4 py-2">{order.product_name}</td>
                         <td className="border border-slate-300 px-4 py-2">{order.quantity}</td>
                         <td className="border border-slate-300 px-4 py-2">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            order.status === "Completed" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
-                          }`}>
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${order.status === "Completed" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
+                            }`}>
                             {order.status}
                           </span>
                         </td>
@@ -557,19 +567,21 @@ function Reports() {
               {(() => {
                 const processData = [];
                 filteredOrders.forEach((order) => {
-                  const orderParties = parties.filter((p) => p.current_order === order.order_id_custom);
-                  orderParties.forEach((party) => {
+                  const orderProcesses = processSequences.filter((p: any) => p.order_id === order.order_id_custom);
+                  orderProcesses.forEach((process: any) => {
+                    const party = parties.find((p: any) => p.id === process.party_id);
                     processData.push({
                       order,
-                      party
+                      process,
+                      partyName: party ? party.party_name : "Not Assigned"
                     });
                   });
                 });
-                
+
                 if (processData.length === 0) {
-                  return <p className="text-center text-slate-500 py-4">No process data available for these orders. Parties may not be assigned to orders yet.</p>;
+                  return <p className="text-center text-slate-500 py-4">No process data available for these orders.</p>;
                 }
-                
+
                 return (
                   <table className="w-full border-collapse">
                     <thead>
@@ -579,24 +591,33 @@ function Reports() {
                         <th className="border border-slate-300 px-4 py-2 text-left">Party</th>
                         <th className="border border-slate-300 px-4 py-2 text-left">Quantity (Pcs)</th>
                         <th className="border border-slate-300 px-4 py-2 text-left">Size</th>
+                        <th className="border border-slate-300 px-4 py-2 text-left">Rate</th>
+                        <th className="border border-slate-300 px-4 py-2 text-left">Total Cost</th>
                         <th className="border border-slate-300 px-4 py-2 text-left">Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {processData.map(({ order, party }, pIndex) => (
-                        <tr key={`${order.id}-${party.id}`} className={pIndex % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                      {processData.map(({ order, process, partyName }, pIndex) => (
+                        <tr key={`${order.id}-process-${process.id}`} className={pIndex % 2 === 0 ? "bg-white" : "bg-slate-50"}>
                           <td className="border border-slate-300 px-4 py-2">{order.order_id_custom}</td>
-                          <td className="border border-slate-300 px-4 py-2">{party.current_process || party.process_type || "N/A"}</td>
-                          <td className="border border-slate-300 px-4 py-2">{party.party_name || "Not Assigned"}</td>
-                          <td className="border border-slate-300 px-4 py-2">{party.quantity_pcs || 0}</td>
-                          <td className="border border-slate-300 px-4 py-2">{party.size || "N/A"}</td>
+                          <td className="border border-slate-300 px-4 py-2">{process.process_name || "N/A"}</td>
+                          <td className="border border-slate-300 px-4 py-2">{partyName}</td>
+                          <td className="border border-slate-300 px-4 py-2">{process.input_qty || 0}</td>
+                          <td className="border border-slate-300 px-4 py-2">{process.size || "N/A"}</td>
                           <td className="border border-slate-300 px-4 py-2">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              party.status === "active" ? "bg-green-100 text-green-700" : 
-                              party.status === "completed" ? "bg-blue-100 text-blue-700" : 
-                              "bg-gray-100 text-gray-700"
-                            }`}>
-                              {party.status || "Pending"}
+                            {process.rate ? `₹${Number(process.rate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-"}
+                          </td>
+                          <td className="border border-slate-300 px-4 py-2">
+                            {Number(process.total_cost || (process.rate * process.input_qty)) > 0
+                              ? `₹${Number(process.total_cost || (process.rate * process.input_qty)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              : "-"}
+                          </td>
+                          <td className="border border-slate-300 px-4 py-2">
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${process.status === "active" ? "bg-green-100 text-green-700" :
+                                process.status === "completed" ? "bg-blue-100 text-blue-700" :
+                                  "bg-gray-100 text-gray-700"
+                              }`}>
+                              {process.status || "Pending"}
                             </span>
                           </td>
                         </tr>
@@ -630,11 +651,10 @@ function Reports() {
                       <td className="border border-slate-300 px-4 py-2">{party.quantity_pcs || 0}</td>
                       <td className="border border-slate-300 px-4 py-2">{party.size || "N/A"}</td>
                       <td className="border border-slate-300 px-4 py-2">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          party.status === "active" ? "bg-green-100 text-green-700" : 
-                          party.status === "completed" ? "bg-blue-100 text-blue-700" : 
-                          "bg-gray-100 text-gray-700"
-                        }`}>
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${party.status === "active" ? "bg-green-100 text-green-700" :
+                            party.status === "completed" ? "bg-blue-100 text-blue-700" :
+                              "bg-gray-100 text-gray-700"
+                          }`}>
                           {party.status || "Pending"}
                         </span>
                       </td>

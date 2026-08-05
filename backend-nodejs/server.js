@@ -137,6 +137,27 @@ async function initDB() {
     `);
 
     await pool.query(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS low_stock_threshold INTEGER DEFAULT 30;`).catch(() => {});
+    await pool.query(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS size VARCHAR(255), ADD COLUMN IF NOT EXISTS finish VARCHAR(255);`).catch(() => {});
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS inventory_boxes (
+        id SERIAL PRIMARY KEY,
+        box_size VARCHAR(255),
+        brand_name VARCHAR(255),
+        quantity INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS inventory_fittings (
+        id SERIAL PRIMARY KEY,
+        fitting_name VARCHAR(255),
+        size VARCHAR(255),
+        quantity INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
     console.log('Database tables initialized');
   } catch (err) {
@@ -331,12 +352,12 @@ app.get('/api/materials/:id', async (req, res) => {
 
 app.post('/api/materials', async (req, res) => {
   try {
-    const { material_name, stock_quantity, unit, reserved_stock, total_stock, status, low_stock_threshold } = req.body;
+    const { material_name, stock_quantity, unit, reserved_stock, total_stock, status, low_stock_threshold, size, finish } = req.body;
     const calculatedTotalStock = total_stock || (stock_quantity + (reserved_stock || 0));
 
     const result = await pool.query(
-      'INSERT INTO materials (material_name, stock_quantity, unit, reserved_stock, total_stock, status, low_stock_threshold) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [material_name, stock_quantity, unit, reserved_stock || 0, calculatedTotalStock, status || 'In Stock', low_stock_threshold || 30]
+      'INSERT INTO materials (material_name, stock_quantity, unit, reserved_stock, total_stock, status, low_stock_threshold, size, finish) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+      [material_name, stock_quantity, unit, reserved_stock || 0, calculatedTotalStock, status || 'In Stock', low_stock_threshold || 30, size, finish]
     );
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
@@ -347,10 +368,10 @@ app.post('/api/materials', async (req, res) => {
 
 app.put('/api/materials/:id', async (req, res) => {
   try {
-    const { material_name, stock_quantity, unit, reserved_stock, total_stock, status, low_stock_threshold } = req.body;
+    const { material_name, stock_quantity, unit, reserved_stock, total_stock, status, low_stock_threshold, size, finish } = req.body;
     const result = await pool.query(
-      'UPDATE materials SET material_name = COALESCE($1, material_name), stock_quantity = COALESCE($2, stock_quantity), unit = COALESCE($3, unit), reserved_stock = COALESCE($4, reserved_stock), total_stock = COALESCE($5, total_stock), status = COALESCE($6, status), low_stock_threshold = COALESCE($7, low_stock_threshold) WHERE id = $8 RETURNING *',
-      [material_name, stock_quantity, unit, reserved_stock, total_stock, status, low_stock_threshold, req.params.id]
+      'UPDATE materials SET material_name = COALESCE($1, material_name), stock_quantity = COALESCE($2, stock_quantity), unit = COALESCE($3, unit), reserved_stock = COALESCE($4, reserved_stock), total_stock = COALESCE($5, total_stock), status = COALESCE($6, status), low_stock_threshold = COALESCE($7, low_stock_threshold), size = COALESCE($8, size), finish = COALESCE($9, finish) WHERE id = $10 RETURNING *',
+      [material_name, stock_quantity, unit, reserved_stock, total_stock, status, low_stock_threshold, size, finish, req.params.id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Material not found' });
@@ -526,6 +547,108 @@ app.delete('/api/process-sequences/order/:order_id', async (req, res) => {
   try {
     await pool.query('DELETE FROM process_sequences WHERE order_id = $1', [req.params.order_id]);
     res.json({ success: true, message: 'Process sequences deleted successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Inventory Boxes Routes
+app.get('/api/boxes', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM inventory_boxes ORDER BY created_at DESC');
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/boxes', async (req, res) => {
+  try {
+    const { box_size, brand_name, quantity } = req.body;
+    const result = await pool.query(
+      'INSERT INTO inventory_boxes (box_size, brand_name, quantity) VALUES ($1, $2, $3) RETURNING *',
+      [box_size, brand_name, quantity || 0]
+    );
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/boxes/:id', async (req, res) => {
+  try {
+    const { box_size, brand_name, quantity } = req.body;
+    const result = await pool.query(
+      'UPDATE inventory_boxes SET box_size = COALESCE($1, box_size), brand_name = COALESCE($2, brand_name), quantity = COALESCE($3, quantity) WHERE id = $4 RETURNING *',
+      [box_size, brand_name, quantity, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Box not found' });
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/boxes/:id', async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM inventory_boxes WHERE id = $1 RETURNING *', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Box not found' });
+    res.json({ success: true, message: 'Box deleted successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Inventory Fittings Routes
+app.get('/api/fittings', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM inventory_fittings ORDER BY created_at DESC');
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/fittings', async (req, res) => {
+  try {
+    const { fitting_name, size, quantity } = req.body;
+    const result = await pool.query(
+      'INSERT INTO inventory_fittings (fitting_name, size, quantity) VALUES ($1, $2, $3) RETURNING *',
+      [fitting_name, size, quantity || 0]
+    );
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/fittings/:id', async (req, res) => {
+  try {
+    const { fitting_name, size, quantity } = req.body;
+    const result = await pool.query(
+      'UPDATE inventory_fittings SET fitting_name = COALESCE($1, fitting_name), size = COALESCE($2, size), quantity = COALESCE($3, quantity) WHERE id = $4 RETURNING *',
+      [fitting_name, size, quantity, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Fitting not found' });
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/fittings/:id', async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM inventory_fittings WHERE id = $1 RETURNING *', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Fitting not found' });
+    res.json({ success: true, message: 'Fitting deleted successfully' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, error: err.message });

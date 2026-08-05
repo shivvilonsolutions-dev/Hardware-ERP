@@ -45,13 +45,13 @@ function DynamicProcessStep({
   onInventorySelect,
 }: DynamicProcessStepProps) {
   const processConfig = PROCESS_TYPES[step.processType as keyof typeof PROCESS_TYPES];
-  
+
   // For custom processes, use the fields directly from step.fields
-  const fields = step.processType === "custom" 
+  const fields = step.processType === "custom"
     ? Object.keys(step.fields).map(key => {
-        const field = ALL_FIELDS.find(f => f.key === key);
-        return field || { key, label: key, type: "text" };
-      })
+      const field = ALL_FIELDS.find(f => f.key === key);
+      return field || { key, label: key, type: "text" };
+    })
     : processConfig?.fields || [];
 
   const colors = ["green", "blue", "violet", "pink", "indigo", "orange", "teal"];
@@ -70,8 +70,8 @@ function DynamicProcessStep({
   const colorClasses = colorMap[color] || colorMap.blue;
 
   const renderField = (field: any) => {
-    const value = step.fields[field.key] !== undefined && step.fields[field.key] !== null && step.fields[field.key] !== "" 
-      ? step.fields[field.key] 
+    const value = step.fields[field.key] !== undefined && step.fields[field.key] !== null && step.fields[field.key] !== ""
+      ? step.fields[field.key]
       : (field.type === "number" ? 0 : "");
     const isCalculated = field.calculated;
     const isEditable = field.editable;
@@ -166,19 +166,18 @@ function DynamicProcessStep({
             value={value}
             onChange={(e) => onFieldChange(step.id, field.key, e.target.value)}
             readOnly={isCalculated}
-            className={`w-full border rounded-xl px-4 py-3 ${
-              isCalculated ? "bg-slate-50" : "bg-white"
-            } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+            className={`w-full border rounded-xl px-4 py-3 ${isCalculated ? "bg-slate-50" : "bg-white"
+              } focus:outline-none focus:ring-2 focus:ring-blue-500`}
           />
         </div>
       );
     }
 
     if (field.type === "number") {
-      const bgColor = isCalculated 
+      const bgColor = isCalculated
         ? (field.key === "output" || field.key === "totalBoxes" ? "bg-green-50 border-green-300" : "bg-slate-50")
         : (field.key === "rejection" ? "bg-red-50 border-red-300" : field.key === "extra" ? "bg-orange-50 border-orange-300" : "bg-white");
-      
+
       const borderColor = isCalculated
         ? (field.key === "output" || field.key === "totalBoxes" ? "border-green-300" : "border-slate-200")
         : (field.key === "rejection" ? "border-red-300" : field.key === "extra" ? "border-orange-300" : "border-slate-200");

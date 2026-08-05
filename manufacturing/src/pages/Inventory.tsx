@@ -67,6 +67,8 @@ function Inventory() {
     unit: "",
     availableStock: "",
     lowStockThreshold: "30",
+    size: "",
+    finish: ""
   });
 
   const [processInventoryForm, setProcessInventoryForm] = useState({
@@ -89,6 +91,15 @@ function Inventory() {
     useState(1);
 
   const [materials, setMaterials] = useState([]);
+
+  const [boxes, setBoxes] = useState<any[]>([]);
+  const [fittings, setFittings] = useState<any[]>([]);
+  
+  const [boxForm, setBoxForm] = useState({ id: null as null | number, boxSize: "", brandName: "", quantity: "" });
+  const [fittingForm, setFittingForm] = useState({ id: null as null | number, fittingName: "", size: "", quantity: "" });
+  
+  const [showBoxForm, setShowBoxForm] = useState(false);
+  const [showFittingForm, setShowFittingForm] = useState(false);
 
   const [processInventory, setProcessInventory] = useState([
     {
@@ -141,6 +152,8 @@ function Inventory() {
   useEffect(() => {
     fetchMaterials();
     fetchProcessInventory();
+    fetchBoxes();
+    fetchFittings();
   }, []);
 
   const fetchMaterials = async () => {
@@ -159,10 +172,116 @@ function Inventory() {
           reservedStock:
             item.reserved_stock ?? 0,
           lowStockThreshold: item.low_stock_threshold || 30,
+          size: item.size || "",
+          finish: item.finish || "",
         }))
       );
     } catch (error) {
       console.error(error);
+    }
+  };
+
+  const fetchBoxes = async () => {
+    try {
+      const res = await api.get("/boxes");
+      if (res.data && res.data.success) {
+        setBoxes(res.data.data);
+      }
+    } catch (error) {
+      console.error("Error fetching boxes:", error);
+    }
+  };
+
+  const fetchFittings = async () => {
+    try {
+      const res = await api.get("/fittings");
+      if (res.data && res.data.success) {
+        setFittings(res.data.data);
+      }
+    } catch (error) {
+      console.error("Error fetching fittings:", error);
+    }
+  };
+
+  const handleSaveBox = async () => {
+    if (!boxForm.boxSize || !boxForm.brandName || !boxForm.quantity) {
+      showToast("Please fill all box fields", "warning");
+      return;
+    }
+    try {
+      if (boxForm.id !== null) {
+        await api.put(`/boxes/${boxForm.id}`, {
+          box_size: boxForm.boxSize,
+          brand_name: boxForm.brandName,
+          quantity: Number(boxForm.quantity)
+        });
+        showToast("Box updated successfully");
+      } else {
+        await api.post("/boxes", {
+          box_size: boxForm.boxSize,
+          brand_name: boxForm.brandName,
+          quantity: Number(boxForm.quantity)
+        });
+        showToast("Box added successfully");
+      }
+      await fetchBoxes();
+      setShowBoxForm(false);
+      setBoxForm({ id: null, boxSize: "", brandName: "", quantity: "" });
+    } catch (error) {
+      console.error(error);
+      showToast("Failed to save box", "error");
+    }
+  };
+
+  const handleDeleteBox = async (id: number) => {
+    try {
+      await api.delete(`/boxes/${id}`);
+      showToast("Box deleted successfully");
+      await fetchBoxes();
+    } catch (error) {
+      console.error(error);
+      showToast("Failed to delete box", "error");
+    }
+  };
+
+  const handleSaveFitting = async () => {
+    if (!fittingForm.fittingName || !fittingForm.size || !fittingForm.quantity) {
+      showToast("Please fill all fitting fields", "warning");
+      return;
+    }
+    try {
+      if (fittingForm.id !== null) {
+        await api.put(`/fittings/${fittingForm.id}`, {
+          fitting_name: fittingForm.fittingName,
+          size: fittingForm.size,
+          quantity: Number(fittingForm.quantity)
+        });
+        showToast("Fitting updated successfully");
+      } else {
+        await api.post("/fittings", {
+          fitting_name: fittingForm.fittingName,
+          size: fittingForm.size,
+          quantity: Number(fittingForm.quantity)
+        });
+        showToast("Fitting added successfully");
+      }
+      await fetchFittings();
+      setShowFittingForm(false);
+      setFittingForm({ id: null, fittingName: "", size: "", quantity: "" });
+    } catch (error) {
+      console.error(error);
+      showToast("Failed to save fitting", "error");
+    }
+  };
+
+  const handleDeleteFitting = async (id: number) => {
+    try {
+      await api.delete(`/fittings/${id}`);
+      showToast("Fitting deleted successfully");
+      await fetchFittings();
+    } catch (error) {
+      console.error(error);
+      showToast("Failed to delete fitting", "error");
     }
   };
 
@@ -376,6 +495,14 @@ function Inventory() {
               <PrimaryButton text="Add Material" />
             </div>
 
+            <div onClick={() => setShowBoxForm(true)}>
+              <PrimaryButton text="Add Box" />
+            </div>
+
+            <div onClick={() => setShowFittingForm(true)}>
+              <PrimaryButton text="Add Fitting" />
+            </div>
+
           </div>
 
         </div>
@@ -475,6 +602,42 @@ function Inventory() {
                   className="w-full border border-slate-200 rounded-xl px-4 py-3"
                 />
               </div>
+              <div>
+                <label className="block mb-2 font-medium">
+                  Size
+                </label>
+
+                <input
+                  type="text"
+                  placeholder="Enter Size"
+                  value={materialForm.size}
+                  onChange={(e) =>
+                    setMaterialForm({
+                      ...materialForm,
+                      size: e.target.value,
+                    })
+                  }
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3"
+                />
+              </div>
+              <div>
+                <label className="block mb-2 font-medium">
+                  Finish
+                </label>
+
+                <input
+                  type="text"
+                  placeholder="Enter Finish "
+                  value={materialForm.finish}
+                  onChange={(e) =>
+                    setMaterialForm({
+                      ...materialForm,
+                      finish: e.target.value,
+                    })
+                  }
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3"
+                />
+              </div>
 
             </div>
 
@@ -535,6 +698,8 @@ function Inventory() {
                             materialForm.availableStock
                           ),
                           low_stock_threshold: Number(materialForm.lowStockThreshold || 30),
+                          size: materialForm.size,
+                          finish: materialForm.finish,
                           status:
                             Number(materialForm.availableStock) === 0
                               ? "Out Of Stock"
@@ -556,6 +721,8 @@ function Inventory() {
                         unit: "",
                         availableStock: "",
                         lowStockThreshold: "30",
+                        size: "",
+                        finish: ""
                       });
 
                       setShowForm(false);
@@ -570,6 +737,8 @@ function Inventory() {
                       ),
                       unit: materialForm.unit,
                       low_stock_threshold: Number(materialForm.lowStockThreshold || 30),
+                      size: materialForm.size,
+                      finish: materialForm.finish,
                     });
 
                     showToast("Material Added Successfully");
@@ -582,7 +751,10 @@ function Inventory() {
                       unit: "",
                       availableStock: "",
                       lowStockThreshold: "30",
+                      size: "",
+                      finish: ""
                     });
+
 
                     setShowForm(false);
 
@@ -677,6 +849,8 @@ function Inventory() {
                       availableStock:
                         item.availableStock.toString(),
                       lowStockThreshold: (item.lowStockThreshold || 30).toString(),
+                      size: (item.size || 0).toString(),
+                      finish: (item.finish || 0).toString(),
                     });
 
                     console.log("Setting Form ID:", item.id);
@@ -748,6 +922,124 @@ function Inventory() {
 
         </div>
 
+      </SectionCard>
+
+      <SectionCard>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-semibold">Boxes Inventory</h2>
+        </div>
+
+        {showBoxForm && (
+          <div className="bg-slate-50 rounded-2xl p-6 mb-6">
+            <h3 className="text-lg font-semibold mb-4">{boxForm.id !== null ? "Edit Box" : "Add New Box"}</h3>
+            <div className="grid grid-cols-3 gap-6">
+              <div>
+                <label className="block mb-2 font-medium">Box Size</label>
+                <input type="text" list="box-sizes" placeholder="Enter Box Size" value={boxForm.boxSize} onChange={(e) => setBoxForm({ ...boxForm, boxSize: e.target.value })} className="w-full border border-slate-200 rounded-xl px-4 py-3" />
+                <datalist id="box-sizes">
+                  {[...new Set(boxes.map(b => b.box_size).filter(Boolean))].map((size: any) => (
+                    <option key={size} value={size} />
+                  ))}
+                </datalist>
+              </div>
+              <div>
+                <label className="block mb-2 font-medium">Brand Name</label>
+                <input type="text" placeholder="Enter Brand Name" value={boxForm.brandName} onChange={(e) => setBoxForm({ ...boxForm, brandName: e.target.value })} className="w-full border border-slate-200 rounded-xl px-4 py-3" />
+              </div>
+              <div>
+                <label className="block mb-2 font-medium">Quantity (Pieces)</label>
+                <input type="number" placeholder="Enter Quantity" value={boxForm.quantity} onChange={(e) => setBoxForm({ ...boxForm, quantity: e.target.value })} className="w-full border border-slate-200 rounded-xl px-4 py-3" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button onClick={() => { setShowBoxForm(false); setBoxForm({ id: null, boxSize: "", brandName: "", quantity: "" }); }} className="px-6 py-3 border rounded-xl">Cancel</button>
+              <button onClick={handleSaveBox} className="px-6 py-3 bg-blue-600 text-white rounded-xl">Save Box</button>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-slate-50 rounded-xl px-4 py-4">
+          <div className="grid grid-cols-4 gap-4 text-sm font-semibold text-slate-600 border-b pb-3 mb-2">
+            <div>Box Size</div>
+            <div>Brand Name</div>
+            <div>Quantity (pcs)</div>
+            <div>Action</div>
+          </div>
+          {boxes.length === 0 ? (
+            <div className="py-4 text-center text-slate-500">No boxes found</div>
+          ) : (
+            boxes.map((item, index) => (
+              <div key={item.id} className="grid grid-cols-4 gap-4 py-4 px-3 border-b border-slate-100 items-center hover:bg-slate-50 transition">
+                <div>{item.box_size}</div>
+                <div>{item.brand_name}</div>
+                <div>{item.quantity}</div>
+                <div className="flex gap-2">
+                  <button onClick={() => { setBoxForm({ id: item.id, boxSize: item.box_size, brandName: item.brand_name, quantity: item.quantity.toString() }); setShowBoxForm(true); }} className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center hover:bg-slate-200"><Pencil size={16} /></button>
+                  <button onClick={() => handleDeleteBox(item.id)} className="w-9 h-9 rounded-lg bg-red-100 flex items-center justify-center hover:bg-red-200 text-red-600"><Trash2 size={16} /></button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </SectionCard>
+
+      <SectionCard>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-semibold">Fittings Inventory</h2>
+        </div>
+
+        {showFittingForm && (
+          <div className="bg-slate-50 rounded-2xl p-6 mb-6">
+            <h3 className="text-lg font-semibold mb-4">{fittingForm.id !== null ? "Edit Fitting" : "Add New Fitting"}</h3>
+            <div className="grid grid-cols-3 gap-6">
+              <div>
+                <label className="block mb-2 font-medium">Fitting Name</label>
+                <input type="text" placeholder="Enter Fitting Name" value={fittingForm.fittingName} onChange={(e) => setFittingForm({ ...fittingForm, fittingName: e.target.value })} className="w-full border border-slate-200 rounded-xl px-4 py-3" />
+              </div>
+              <div>
+                <label className="block mb-2 font-medium">Size</label>
+                <input type="text" list="fitting-sizes" placeholder="Enter Size" value={fittingForm.size} onChange={(e) => setFittingForm({ ...fittingForm, size: e.target.value })} className="w-full border border-slate-200 rounded-xl px-4 py-3" />
+                <datalist id="fitting-sizes">
+                  {[...new Set([...fittings.map(f => f.size), ...materials.map((m: any) => m.size)].filter(Boolean))].map((size: any) => (
+                    <option key={size} value={size} />
+                  ))}
+                </datalist>
+              </div>
+              <div>
+                <label className="block mb-2 font-medium">Quantity (Pieces)</label>
+                <input type="number" placeholder="Enter Quantity" value={fittingForm.quantity} onChange={(e) => setFittingForm({ ...fittingForm, quantity: e.target.value })} className="w-full border border-slate-200 rounded-xl px-4 py-3" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button onClick={() => { setShowFittingForm(false); setFittingForm({ id: null, fittingName: "", size: "", quantity: "" }); }} className="px-6 py-3 border rounded-xl">Cancel</button>
+              <button onClick={handleSaveFitting} className="px-6 py-3 bg-blue-600 text-white rounded-xl">Save Fitting</button>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-slate-50 rounded-xl px-4 py-4">
+          <div className="grid grid-cols-4 gap-4 text-sm font-semibold text-slate-600 border-b pb-3 mb-2">
+            <div>Fitting Name</div>
+            <div>Size</div>
+            <div>Quantity (pcs)</div>
+            <div>Action</div>
+          </div>
+          {fittings.length === 0 ? (
+            <div className="py-4 text-center text-slate-500">No fittings found</div>
+          ) : (
+            fittings.map((item, index) => (
+              <div key={item.id} className="grid grid-cols-4 gap-4 py-4 px-3 border-b border-slate-100 items-center hover:bg-slate-50 transition">
+                <div>{item.fitting_name}</div>
+                <div>{item.size}</div>
+                <div>{item.quantity}</div>
+                <div className="flex gap-2">
+                  <button onClick={() => { setFittingForm({ id: item.id, fittingName: item.fitting_name, size: item.size, quantity: item.quantity.toString() }); setShowFittingForm(true); }} className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center hover:bg-slate-200"><Pencil size={16} /></button>
+                  <button onClick={() => handleDeleteFitting(item.id)} className="w-9 h-9 rounded-lg bg-red-100 flex items-center justify-center hover:bg-red-200 text-red-600"><Trash2 size={16} /></button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </SectionCard>
 
       <SectionCard>

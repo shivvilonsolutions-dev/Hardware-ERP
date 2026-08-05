@@ -18,7 +18,7 @@ function ProcessOrders() {
     setLoading(true);
     try {
       const res = await api.get("/orders");
-      setOrders(res.data.data);
+      setOrders(res.data?.data || []);
     } catch (error) {
       console.error(error);
       showToast("Failed to fetch orders", "error");

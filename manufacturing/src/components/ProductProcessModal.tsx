@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PROCESS_TYPES } from "@/config/processTypes";
 import {
   DndContext,
@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Trash2, Plus, X, Package } from "lucide-react";
+import { GripVertical, Trash2, Plus, X, Package, Pencil } from "lucide-react";
 
 interface InventoryItem {
   id: number;
@@ -55,6 +55,7 @@ function SortableProcessStep({
   step,
   onPartyChange,
   onRemove,
+  onEdit,
   availableParties,
   onProcessNameChange,
   availableInventory,
@@ -63,6 +64,7 @@ function SortableProcessStep({
   step: ProcessStep;
   onPartyChange: (partyName: string) => void;
   onRemove: () => void;
+  onEdit: () => void;
   availableParties: string[];
   onProcessNameChange: (processName: string) => void;
   availableInventory: InventoryItem[];
@@ -119,6 +121,13 @@ function SortableProcessStep({
             ))}
           </select>
         </div> */}
+        <button
+          onClick={onEdit}
+          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+          title="Edit process step"
+        >
+          <Pencil size={18} />
+        </button>
 
         <button
           onClick={onRemove}
@@ -184,6 +193,7 @@ function ProductProcessModal({
   const [newProcessName, setNewProcessName] = useState("");
   const [newProcessType, setNewProcessType] = useState("basic");
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
+  const [editingStepId, setEditingStepId] = useState<string | null>(null);
 
   // All available field options
   const ALL_FIELDS = [
@@ -206,6 +216,12 @@ function ProductProcessModal({
     { key: "unit", label: "Unit", type: "radio", options: ["KG", "Pieces"] },
   ];
 
+  useEffect(() => {
+    if (isOpen) {
+      setProcessSequence(initialSequence);
+    }
+  }, [isOpen, initialSequence]);
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -224,43 +240,109 @@ function ProductProcessModal({
     }
   };
 
+  // const handleAddProcess = () => {
+  //   if (newProcessName.trim() && selectedFields.length > 0) {
+  //     const initialFields: Record<string, any> = {};
+
+  //     selectedFields.forEach(fieldKey => {
+  //       const field = ALL_FIELDS.find(f => f.key === fieldKey);
+  //       if (field) {
+  //         if (field.type === "number") {
+  //           initialFields[field.key] = 0;
+  //         } else if (field.type === "text") {
+  //           initialFields[field.key] = "";
+  //         } else if (field.type === "radio") {
+  //           initialFields[field.key] = field.options?.[0] || "";
+  //         }
+  //       }
+  //     });
+
+  //     const newStep: ProcessStep = {
+  //       id: `process-${Date.now()}`,
+  //       processName: newProcessName.trim(),
+  //       processType: "custom",
+  //       partyName: "",
+  //       fields: initialFields,
+  //     };
+
+  //     setProcessSequence([...processSequence, newStep]);
+
+  //     if (onAddProcess && !availableProcesses.includes(newProcessName.trim())) {
+  //       onAddProcess(newProcessName.trim());
+  //     }
+
+  //     setNewProcessName("");
+  //     setSelectedFields([]);
+  //     setShowAddProcess(false);
+  //   }
+  // };
+
+
+
+
   const handleAddProcess = () => {
     if (newProcessName.trim() && selectedFields.length > 0) {
-      const initialFields: Record<string, any> = {};
-      
-      selectedFields.forEach(fieldKey => {
-        const field = ALL_FIELDS.find(f => f.key === fieldKey);
-        if (field) {
-          if (field.type === "number") {
-            initialFields[field.key] = 0;
-          } else if (field.type === "text") {
-            initialFields[field.key] = "";
-          } else if (field.type === "radio") {
-            initialFields[field.key] = field.options?.[0] || "";
-          }
-        }
-      });
-      
-      const newStep: ProcessStep = {
-        id: `process-${Date.now()}`,
-        processName: newProcessName.trim(),
-        processType: "custom",
-        partyName: "",
-        fields: initialFields,
-      };
+      if (editingStepId) {
+        setProcessSequence((prev) =>
+          prev.map((step) => {
+            if (step.id !== editingStepId) return step;
 
-      setProcessSequence([...processSequence, newStep]);
-      
+            const updatedFields: Record<string, any> = {};
+            selectedFields.forEach((fieldKey) => {
+              if (step.fields && step.fields[fieldKey] !== undefined) {
+                updatedFields[fieldKey] = step.fields[fieldKey];
+              } else {
+                const field = ALL_FIELDS.find((f) => f.key === fieldKey);
+                if (field) {
+                  if (field.type === "number") updatedFields[fieldKey] = 0;
+                  else if (field.type === "text") updatedFields[fieldKey] = "";
+                  else if (field.type === "radio")
+                    updatedFields[fieldKey] = field.options?.[0] || "";
+                }
+              }
+            });
+
+            return {
+              ...step,
+              processName: newProcessName.trim(),
+              processType: "custom",
+              fields: updatedFields,
+            };
+          })
+        );
+      } else {
+        const initialFields: Record<string, any> = {};
+        selectedFields.forEach((fieldKey) => {
+          const field = ALL_FIELDS.find((f) => f.key === fieldKey);
+          if (field) {
+            if (field.type === "number") initialFields[field.key] = 0;
+            else if (field.type === "text") initialFields[field.key] = "";
+            else if (field.type === "radio")
+              initialFields[field.key] = field.options?.[0] || "";
+          }
+        });
+
+        const newStep: ProcessStep = {
+          id: `process-${Date.now()}`,
+          processName: newProcessName.trim(),
+          processType: "custom",
+          partyName: "",
+          fields: initialFields,
+        };
+
+        setProcessSequence([...processSequence, newStep]);
+      }
+
       if (onAddProcess && !availableProcesses.includes(newProcessName.trim())) {
         onAddProcess(newProcessName.trim());
       }
 
       setNewProcessName("");
       setSelectedFields([]);
+      setEditingStepId(null);
       setShowAddProcess(false);
     }
   };
-
   const handleRemoveProcess = (id: string) => {
     setProcessSequence(processSequence.filter((p) => p.id !== id));
   };
@@ -281,6 +363,13 @@ function ProductProcessModal({
     setProcessSequence(
       processSequence.map((p) => (p.id === id ? { ...p, inventoryItemId: itemId, inventoryQuantity: quantity } : p))
     );
+  };
+
+  const handleEditProcess = (step: ProcessStep) => {
+    setEditingStepId(step.id);
+    setNewProcessName(step.processName);
+    setSelectedFields(Object.keys(step.fields || {}));
+    setShowAddProcess(true);
   };
 
   const handleSave = () => {
@@ -332,6 +421,7 @@ function ProductProcessModal({
                     step={step}
                     onPartyChange={(partyName) => handlePartyChange(step.id, partyName)}
                     onRemove={() => handleRemoveProcess(step.id)}
+                    onEdit={() => handleEditProcess(step)}
                     availableParties={availableParties}
                     onProcessNameChange={(processName) => handleProcessNameChange(step.id, processName)}
                     availableInventory={availableInventory}
@@ -384,6 +474,7 @@ function ProductProcessModal({
                     setShowAddProcess(false);
                     setSelectedFields([]);
                     setNewProcessName("");
+                    setEditingStepId(null);
                   }}
                   className="px-4 py-2 border border-slate-300 rounded-xl text-sm hover:bg-slate-50"
                 >

@@ -13,9 +13,9 @@ app.use(express.json());
 // PostgreSQL connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  // ssl: {
-  //   rejectUnauthorized: false
-  // }
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 // Test database connection
@@ -63,7 +63,7 @@ async function initDB() {
         ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Pending',
         ADD COLUMN IF NOT EXISTS order_id_custom VARCHAR(50) UNIQUE,
         ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-    `).catch(() => {});
+    `).catch(() => { });
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS parties (
@@ -136,8 +136,8 @@ async function initDB() {
       )
     `);
 
-    await pool.query(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS low_stock_threshold INTEGER DEFAULT 30;`).catch(() => {});
-    await pool.query(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS size VARCHAR(255), ADD COLUMN IF NOT EXISTS finish VARCHAR(255);`).catch(() => {});
+    await pool.query(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS low_stock_threshold INTEGER DEFAULT 30;`).catch(() => { });
+    await pool.query(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS size VARCHAR(255), ADD COLUMN IF NOT EXISTS finish VARCHAR(255);`).catch(() => { });
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS inventory_boxes (

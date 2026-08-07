@@ -1,3 +1,5 @@
 {
-  "projects": "manufacturing-erp-1f04f"
+  "projects": {
+    "default": "manufacturing-erp-1f04f"
+  }
 }

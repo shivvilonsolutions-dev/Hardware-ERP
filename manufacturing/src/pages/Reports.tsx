@@ -592,7 +592,8 @@ function Reports() {
                         <th className="border border-slate-300 px-4 py-2 text-left">Quantity (Pcs)</th>
                         <th className="border border-slate-300 px-4 py-2 text-left">Size</th>
                         <th className="border border-slate-300 px-4 py-2 text-left">Rate</th>
-                        <th className="border border-slate-300 px-4 py-2 text-left">Total Cost</th>
+                        {/* <th className="border border-slate-300 px-4 py-2 text-left">Total Cost</th> */}
+
                         <th className="border border-slate-300 px-4 py-2 text-left">Status</th>
                       </tr>
                     </thead>
@@ -607,11 +608,11 @@ function Reports() {
                           <td className="border border-slate-300 px-4 py-2">
                             {process.rate ? `₹${Number(process.rate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-"}
                           </td>
-                          <td className="border border-slate-300 px-4 py-2">
+                          {/* <td className="border border-slate-300 px-4 py-2">
                             {Number(process.total_cost || (process.rate * process.input_qty)) > 0
                               ? `₹${Number(process.total_cost || (process.rate * process.input_qty)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                               : "-"}
-                          </td>
+                          </td> */}
                           <td className="border border-slate-300 px-4 py-2">
                             <span className={`px-2 py-1 rounded text-xs font-medium ${process.status === "active" ? "bg-green-100 text-green-700" :
                               process.status === "completed" ? "bg-blue-100 text-blue-700" :

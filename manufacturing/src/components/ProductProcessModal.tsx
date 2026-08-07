@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { PROCESS_TYPES } from "@/config/processTypes";
+import { ALL_FIELDS } from "@/config/fields";
 import {
   DndContext,
   closestCenter,
@@ -35,6 +36,7 @@ interface ProcessStep {
   processType: string;
   partyName: string;
   fields: Record<string, any>;
+  activeFields?: string[];
   inventoryItemId?: number;
   inventoryQuantity?: number;
 }
@@ -276,10 +278,6 @@ function ProductProcessModal({
   //     setShowAddProcess(false);
   //   }
   // };
-
-
-
-
   const handleAddProcess = () => {
     if (newProcessName.trim() && selectedFields.length > 0) {
       if (editingStepId) {
@@ -296,8 +294,7 @@ function ProductProcessModal({
                 if (field) {
                   if (field.type === "number") updatedFields[fieldKey] = 0;
                   else if (field.type === "text") updatedFields[fieldKey] = "";
-                  else if (field.type === "radio")
-                    updatedFields[fieldKey] = field.options?.[0] || "";
+                  else if (field.type === "radio") updatedFields[fieldKey] = field.options?.[0] || "";
                 }
               }
             });
@@ -305,7 +302,9 @@ function ProductProcessModal({
             return {
               ...step,
               processName: newProcessName.trim(),
+              // FIXED: Add the fields back into the string so the DB saves it
               processType: `custom:${selectedFields.join(',')}`,
+              activeFields: selectedFields,
               fields: updatedFields,
             };
           })
@@ -317,15 +316,16 @@ function ProductProcessModal({
           if (field) {
             if (field.type === "number") initialFields[field.key] = 0;
             else if (field.type === "text") initialFields[field.key] = "";
-            else if (field.type === "radio")
-              initialFields[field.key] = field.options?.[0] || "";
+            else if (field.type === "radio") initialFields[field.key] = field.options?.[0] || "";
           }
         });
 
         const newStep: ProcessStep = {
           id: `process-${Date.now()}`,
           processName: newProcessName.trim(),
+          // FIXED: Add the fields back into the string so the DB saves it
           processType: `custom:${selectedFields.join(',')}`,
+          activeFields: selectedFields,
           partyName: "",
           fields: initialFields,
         };
@@ -343,6 +343,8 @@ function ProductProcessModal({
       setShowAddProcess(false);
     }
   };
+
+
   const handleRemoveProcess = (id: string) => {
     setProcessSequence(processSequence.filter((p) => p.id !== id));
   };
@@ -368,7 +370,23 @@ function ProductProcessModal({
   const handleEditProcess = (step: ProcessStep) => {
     setEditingStepId(step.id);
     setNewProcessName(step.processName);
-    setSelectedFields(Object.keys(step.fields || {}));
+
+    let fieldKeys: string[] = [];
+
+    if (step.activeFields && step.activeFields.length > 0) {
+      fieldKeys = [...step.activeFields];
+    } else if (step.processType.startsWith("custom:")) {
+      fieldKeys = step.processType.split(":")[1].split(",");
+    } else {
+      const config = PROCESS_TYPES[step.processType as keyof typeof PROCESS_TYPES];
+      if (config) {
+        fieldKeys = config.fields.map((f: any) => f.key);
+      } else {
+        fieldKeys = Object.keys(step.fields || {});
+      }
+    }
+
+    setSelectedFields(fieldKeys);
     setShowAddProcess(true);
   };
 

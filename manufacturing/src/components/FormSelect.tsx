@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus } from "lucide-react";
 
 type FormSelectProps = {
@@ -24,10 +24,20 @@ function FormSelect({
   const [inputValue, setInputValue] = useState(value || "");
   const [filteredOptions, setFilteredOptions] = useState(options);
 
+  // Sync local state when the parent 'value' prop changes (e.g., clicking Edit)
+  useEffect(() => {
+    setInputValue(value || "");
+  }, [value]);
+
+  // Sync options if the parent fetches them asynchronously
+  useEffect(() => {
+    setFilteredOptions(options);
+  }, [options]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setInputValue(newValue);
-    
+
     if (onChange) {
       onChange(newValue);
     }
@@ -78,7 +88,7 @@ function FormSelect({
           placeholder={placeholder}
           className="w-full border border-slate-200 rounded-xl px-4 py-3 pr-10 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-        
+
         <button
           onClick={handleAddNew}
           className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-blue-600 hover:bg-blue-50 rounded-lg"

@@ -1,0 +1,18 @@
+export const ALL_FIELDS = [
+    { key: "partyName", label: "Party Name", type: "select" },
+    { key: "size", label: "Size", type: "text" },
+    { key: "size_unit", label: "Size Unit", type: "select", options: ["Pieces", "Inches"] },
+    { key: "kg", label: "KG (Raw Material)", type: "number" },
+    { key: "inputQty", label: "Pieces Required", type: "number" },
+    { key: "rejection", label: "Rejection", type: "number" },
+    { key: "extra", label: "Extra (To Inventory)", type: "number" },
+    { key: "output", label: "Output To Next Process", type: "number", calculated: true },
+    { key: "cutting", label: "Cutting (Auto)", type: "number", calculated: true },
+    { key: "hole", label: "Hole (Per Pc)", type: "number" },
+    { key: "rate", label: "Rate", type: "number" },
+    { key: "totalCost", label: "Total Cost", type: "number", calculated: true },
+    { key: "finishing", label: "Finishing", type: "text" },
+    { key: "piecesPerBox", label: "Pieces Per Box", type: "number" },
+    { key: "totalBoxes", label: "Total Boxes", type: "number", calculated: true },
+    { key: "unit", label: "Unit", type: "radio", options: ["KG", "Pieces"] },
+];

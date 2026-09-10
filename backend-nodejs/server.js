@@ -12,17 +12,27 @@ app.use(express.json());
 
 // PostgreSQL connection
 const dbUrl = process.env.DATABASE_URL || '';
+
+// Sanitize URL for safe logging
+const sanitizedUrl = dbUrl ? dbUrl.replace(/:[^:@]*@/, ':****@') : 'No DATABASE_URL provided';
+console.log('Attempting to connect to database:', sanitizedUrl);
+
 // Render internal database URLs do not support SSL
 const isInternalRender = dbUrl.includes('@dpg-') && !dbUrl.includes('.render.com');
 
 const poolConfig = {
-  connectionString: dbUrl
+  connectionString: dbUrl,
+  max: 5, // Limit connections for free tier databases
+  connectionTimeoutMillis: 10000,
+  idleTimeoutMillis: 30000
 };
 
 // Only add SSL if it's NOT a Render internal URL and NOT localhost
 if (!isInternalRender && !dbUrl.includes('localhost') && dbUrl !== '') {
   poolConfig.ssl = { rejectUnauthorized: false };
 }
+
+console.log('Pool SSL config:', poolConfig.ssl ? 'Enabled' : 'Disabled');
 
 const pool = new Pool(poolConfig);
 

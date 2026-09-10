@@ -11,12 +11,20 @@ app.use(cors());
 app.use(express.json());
 
 // PostgreSQL connection
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
+const dbUrl = process.env.DATABASE_URL || '';
+// Render internal database URLs do not support SSL
+const isInternalRender = dbUrl.includes('@dpg-') && !dbUrl.includes('.render.com');
+
+const poolConfig = {
+  connectionString: dbUrl
+};
+
+// Only add SSL if it's NOT a Render internal URL and NOT localhost
+if (!isInternalRender && !dbUrl.includes('localhost') && dbUrl !== '') {
+  poolConfig.ssl = { rejectUnauthorized: false };
+}
+
+const pool = new Pool(poolConfig);
 
 // Test database connection
 pool.on('connect', () => {

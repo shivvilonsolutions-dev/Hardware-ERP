@@ -10,6 +10,9 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// Track database readiness
+let dbReady = false;
+
 // PostgreSQL connection
 const dbUrl = process.env.DATABASE_URL || '';
 
@@ -17,22 +20,28 @@ const dbUrl = process.env.DATABASE_URL || '';
 const sanitizedUrl = dbUrl ? dbUrl.replace(/:[^:@]*@/, ':****@') : 'No DATABASE_URL provided';
 console.log('Attempting to connect to database:', sanitizedUrl);
 
-// Render internal database URLs do not support SSL
+// Detect Render environment: internal URLs use private network (no SSL needed)
+// Internal URLs look like: dpg-xxxxx-a (no .render.com domain)
+// External URLs look like: dpg-xxxxx-a.ohio-postgres.render.com (need SSL)
 const isInternalRender = dbUrl.includes('@dpg-') && !dbUrl.includes('.render.com');
+const isExternalRender = dbUrl.includes('.render.com');
+const isLocalhost = dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1');
 
 const poolConfig = {
   connectionString: dbUrl,
-  max: 5, // Limit connections for free tier databases
-  connectionTimeoutMillis: 10000,
-  idleTimeoutMillis: 30000
+  max: 3,                        // Conservative for free tier
+  connectionTimeoutMillis: 30000, // 30s timeout for cold-start databases
+  idleTimeoutMillis: 60000,       // 60s idle timeout
+  allowExitOnIdle: false,         // Keep pool alive
 };
 
-// Only add SSL if it's NOT a Render internal URL and NOT localhost
-if (!isInternalRender && !dbUrl.includes('localhost') && dbUrl !== '') {
+// SSL configuration for Render external URLs
+if (isExternalRender || (!isInternalRender && !isLocalhost && dbUrl !== '')) {
   poolConfig.ssl = { rejectUnauthorized: false };
 }
 
 console.log('Pool SSL config:', poolConfig.ssl ? 'Enabled' : 'Disabled');
+console.log('Connection type:', isInternalRender ? 'Render Internal' : isExternalRender ? 'Render External' : isLocalhost ? 'Localhost' : 'Other');
 
 const pool = new Pool(poolConfig);
 
@@ -42,156 +51,196 @@ pool.on('connect', () => {
 });
 
 pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
-  process.exit(-1);
+  console.error('Unexpected error on idle client:', err.message);
+  // Don't exit the process — let the pool recover on its own.
+  // Connections will be re-established on next query attempt.
 });
+
+// Middleware: reject API requests if DB is not ready yet
+app.use('/api', (req, res, next) => {
+  if (!dbReady) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database is still initializing. Please try again in a few seconds.',
+    });
+  }
+  next();
+});
+
+// Helper: retry a function with exponential backoff
+async function withRetry(fn, { retries = 5, baseDelayMs = 2000, label = 'operation' } = {}) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const delay = baseDelayMs * Math.pow(2, attempt - 1); // 2s, 4s, 8s, 16s, 32s
+      console.error(`[Attempt ${attempt}/${retries}] ${label} failed: ${err.message}`);
+      if (attempt === retries) {
+        throw err;
+      }
+      console.log(`Retrying ${label} in ${delay / 1000}s...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
 
 // Initialize database tables
 async function initDB() {
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS orders (
-        id SERIAL PRIMARY KEY,
-        client_name VARCHAR(255),
-        brand_name VARCHAR(255),
-        product_name VARCHAR(255),
-        quantity INTEGER,
-        delivery_location VARCHAR(255),
-        notes TEXT,
-        surface_finishes VARCHAR(255),  
-        model VARCHAR(255),             
-        size VARCHAR(255),              
-        status VARCHAR(50) DEFAULT 'Pending',
-        order_id_custom VARCHAR(50) UNIQUE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+  // First, verify we can actually connect
+  await withRetry(
+    async () => {
+      const client = await pool.connect();
+      try {
+        await client.query('SELECT 1');
+        console.log('Database connection verified successfully');
+      } finally {
+        client.release();
+      }
+    },
+    { retries: 5, baseDelayMs: 3000, label: 'DB connection test' }
+  );
 
-    await pool.query(`
-      ALTER TABLE orders 
-        ADD COLUMN IF NOT EXISTS client_name VARCHAR(255),
-        ADD COLUMN IF NOT EXISTS brand_name VARCHAR(255),
-        ADD COLUMN IF NOT EXISTS product_name VARCHAR(255),
-        ADD COLUMN IF NOT EXISTS quantity INTEGER,
-        ADD COLUMN IF NOT EXISTS delivery_location VARCHAR(255),
-        ADD COLUMN IF NOT EXISTS notes TEXT,
-        ADD COLUMN IF NOT EXISTS surface_finishes VARCHAR(255),
-        ADD COLUMN IF NOT EXISTS model VARCHAR(255),
-        ADD COLUMN IF NOT EXISTS size VARCHAR(255),
-        ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Pending',
-        ADD COLUMN IF NOT EXISTS order_id_custom VARCHAR(50) UNIQUE,
-        ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-    `).catch(() => { });
+  // Now create the tables
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS orders (
+      id SERIAL PRIMARY KEY,
+      client_name VARCHAR(255),
+      brand_name VARCHAR(255),
+      product_name VARCHAR(255),
+      quantity INTEGER,
+      delivery_location VARCHAR(255),
+      notes TEXT,
+      surface_finishes VARCHAR(255),  
+      model VARCHAR(255),             
+      size VARCHAR(255),              
+      status VARCHAR(50) DEFAULT 'Pending',
+      order_id_custom VARCHAR(50) UNIQUE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS parties (
-        id SERIAL PRIMARY KEY,
-        party_name VARCHAR(255),
-        process_type VARCHAR(255),
-        current_order VARCHAR(255),
-        current_process VARCHAR(255),
-        quantity_pcs INTEGER,
-        status VARCHAR(50) DEFAULT 'active',
-        size VARCHAR(255),
-        party_id_custom VARCHAR(50) UNIQUE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+  await pool.query(`
+    ALTER TABLE orders 
+      ADD COLUMN IF NOT EXISTS client_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS brand_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS product_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS quantity INTEGER,
+      ADD COLUMN IF NOT EXISTS delivery_location VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS notes TEXT,
+      ADD COLUMN IF NOT EXISTS surface_finishes VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS model VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS size VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Pending',
+      ADD COLUMN IF NOT EXISTS order_id_custom VARCHAR(50) UNIQUE,
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+  `).catch(() => { });
 
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS materials (
-        id SERIAL PRIMARY KEY,
-        material_name VARCHAR(255),
-        stock_quantity INTEGER DEFAULT 0,
-        unit VARCHAR(50),
-        reserved_stock INTEGER DEFAULT 0,
-        total_stock INTEGER DEFAULT 0,
-        low_stock_threshold INTEGER DEFAULT 30,
-        status VARCHAR(50) DEFAULT 'In Stock',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS parties (
+      id SERIAL PRIMARY KEY,
+      party_name VARCHAR(255),
+      process_type VARCHAR(255),
+      current_order VARCHAR(255),
+      current_process VARCHAR(255),
+      quantity_pcs INTEGER,
+      status VARCHAR(50) DEFAULT 'active',
+      size VARCHAR(255),
+      party_id_custom VARCHAR(50) UNIQUE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS process_sequences (
-        id SERIAL PRIMARY KEY,
-        order_id VARCHAR(255),
-        process_name VARCHAR(255),
-        process_type VARCHAR(255),
-        sequence_number INTEGER,
-        party_id INTEGER,
-        input_qty DECIMAL(10,2) DEFAULT 0,
-        output_qty DECIMAL(10,2) DEFAULT 0,
-        rejection DECIMAL(10,2) DEFAULT 0,
-        extra DECIMAL(10,2) DEFAULT 0,
-        size VARCHAR(255),
-        size_unit VARCHAR(50) DEFAULT 'Pieces',
-        kg DECIMAL(10,2) DEFAULT 0,
-        pieces DECIMAL(10,2) DEFAULT 0,
-        rate DECIMAL(10,2) DEFAULT 0,
-        total_cost DECIMAL(10,2) DEFAULT 0,
-        total_boxes DECIMAL(10,2) DEFAULT 0,
-        cutting DECIMAL(10,2) DEFAULT 0,
-        hole DECIMAL(10,2) DEFAULT 0,
-        finishing VARCHAR(255),
-        pieces_per_box DECIMAL(10,2) DEFAULT 0,
-        status VARCHAR(50) DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS materials (
+      id SERIAL PRIMARY KEY,
+      material_name VARCHAR(255),
+      stock_quantity INTEGER DEFAULT 0,
+      unit VARCHAR(50),
+      reserved_stock INTEGER DEFAULT 0,
+      total_stock INTEGER DEFAULT 0,
+      low_stock_threshold INTEGER DEFAULT 30,
+      status VARCHAR(50) DEFAULT 'In Stock',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS process_inventory (
-        id SERIAL PRIMARY KEY,
-        party_name VARCHAR(255),
-        order_name VARCHAR(255),
-        order_date VARCHAR(255),
-        process_name VARCHAR(255),
-        quantity INTEGER DEFAULT 0,
-        unit VARCHAR(50),
-        status VARCHAR(50) DEFAULT 'In Process',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS process_sequences (
+      id SERIAL PRIMARY KEY,
+      order_id VARCHAR(255),
+      process_name VARCHAR(255),
+      process_type VARCHAR(255),
+      sequence_number INTEGER,
+      party_id INTEGER,
+      input_qty DECIMAL(10,2) DEFAULT 0,
+      output_qty DECIMAL(10,2) DEFAULT 0,
+      rejection DECIMAL(10,2) DEFAULT 0,
+      extra DECIMAL(10,2) DEFAULT 0,
+      size VARCHAR(255),
+      size_unit VARCHAR(50) DEFAULT 'Pieces',
+      kg DECIMAL(10,2) DEFAULT 0,
+      pieces DECIMAL(10,2) DEFAULT 0,
+      rate DECIMAL(10,2) DEFAULT 0,
+      total_cost DECIMAL(10,2) DEFAULT 0,
+      total_boxes DECIMAL(10,2) DEFAULT 0,
+      cutting DECIMAL(10,2) DEFAULT 0,
+      hole DECIMAL(10,2) DEFAULT 0,
+      finishing VARCHAR(255),
+      pieces_per_box DECIMAL(10,2) DEFAULT 0,
+      status VARCHAR(50) DEFAULT 'pending',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
-    await pool.query(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS low_stock_threshold INTEGER DEFAULT 30;`).catch(() => { });
-    await pool.query(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS size VARCHAR(255), ADD COLUMN IF NOT EXISTS finish VARCHAR(255);`).catch(() => { });
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS process_inventory (
+      id SERIAL PRIMARY KEY,
+      party_name VARCHAR(255),
+      order_name VARCHAR(255),
+      order_date VARCHAR(255),
+      process_name VARCHAR(255),
+      quantity INTEGER DEFAULT 0,
+      unit VARCHAR(50),
+      status VARCHAR(50) DEFAULT 'In Process',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS inventory_boxes (
-        id SERIAL PRIMARY KEY,
-        box_size VARCHAR(255),
-        brand_name VARCHAR(255),
-        quantity INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+  await pool.query(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS low_stock_threshold INTEGER DEFAULT 30;`).catch(() => { });
+  await pool.query(`ALTER TABLE materials ADD COLUMN IF NOT EXISTS size VARCHAR(255), ADD COLUMN IF NOT EXISTS finish VARCHAR(255);`).catch(() => { });
 
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS inventory_fittings (
-        id SERIAL PRIMARY KEY,
-        fitting_name VARCHAR(255),
-        size VARCHAR(255),
-        quantity INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS inventory_boxes (
+      id SERIAL PRIMARY KEY,
+      box_size VARCHAR(255),
+      brand_name VARCHAR(255),
+      quantity INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
-    console.log('Database tables initialized');
-  } catch (err) {
-    console.error('Error initializing database:', err);
-  }
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS inventory_fittings (
+      id SERIAL PRIMARY KEY,
+      fitting_name VARCHAR(255),
+      size VARCHAR(255),
+      quantity INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  console.log('Database tables initialized');
 }
 
 // Routes
 
 // Health check
 app.get('/', (req, res) => {
-  res.json({ message: 'Hardware ERP API is running' });
+  res.json({ message: 'Hardware ERP API is running', dbReady });
 });
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'healthy' });
+  res.json({ status: dbReady ? 'healthy' : 'initializing', dbReady });
 });
 
 // Orders routes
@@ -675,14 +724,31 @@ app.delete('/api/fittings/:id', async (req, res) => {
 
 // Start server
 async function startServer() {
+  // Start the HTTP server immediately so Render doesn't kill it for not binding a port
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+
+  // Initialize the database in the background with retries
   try {
     await initDB();
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`Server running on port ${PORT}`);
-    });
+    dbReady = true;
+    console.log('✅ Database is ready — API routes are now active');
   } catch (err) {
-    console.error('Error starting server:', err);
-    process.exit(1);
+    console.error('❌ Failed to initialize database after all retries:', err.message);
+    console.error('The server is running but API routes will return 503 until the database is available.');
+    // Don't exit — keep the server alive so Render doesn't restart it in a loop.
+    // Attempt to reconnect in 30 seconds
+    setTimeout(async () => {
+      try {
+        console.log('🔄 Retrying database initialization...');
+        await initDB();
+        dbReady = true;
+        console.log('✅ Database is ready on retry — API routes are now active');
+      } catch (retryErr) {
+        console.error('❌ Database retry also failed:', retryErr.message);
+      }
+    }, 30000);
   }
 }
 

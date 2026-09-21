@@ -34,10 +34,10 @@ function ProcessOrders() {
   return (
     <>
       <PageHeader
-  title="Process Orders"
-  subtitle="Select Order To Start Process"
-  icon={ClipboardList}
-/>
+        title="Process Orders"
+        subtitle="Select Order To Start Process"
+        icon={ClipboardList}
+      />
 
       <SectionCard>
 
@@ -53,7 +53,7 @@ function ProcessOrders() {
             <div>Client Name</div>
             <div>Brand</div>
             <div>Product</div>
-            <div>Quantity</div>
+            <div>Quantity/Sizes</div>
             <div>Status</div>
             <div>Action</div>
 
@@ -70,7 +70,7 @@ function ProcessOrders() {
             No orders found
           </div>
         ) : (
-          orders.map((order) => (
+          orders.map((order: any) => (
             <div
               key={order.id}
               className="grid grid-cols-7 gap-4 py-4 px-2 border-b border-slate-100 items-center"
@@ -79,7 +79,12 @@ function ProcessOrders() {
               <div>{order.client_name}</div>
               <div>{order.brand_name}</div>
               <div>{order.product_name}</div>
-              <div>{order.quantity}</div>
+              <div>
+                {order.items && order.items.length > 1
+                  ? <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-xs font-bold">{order.items.length} Sizes</span>
+                  : `${order.quantity} Pcs`
+                }
+              </div>
               <div>
                 <StatusBadge
                   text={order.status}
@@ -102,7 +107,7 @@ function ProcessOrders() {
                       }
                     )
                   }
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                 >
                   Open
                 </button>

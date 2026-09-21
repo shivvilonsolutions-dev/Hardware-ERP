@@ -44,7 +44,6 @@ function NewOrder() {
   ]);
   const [deliveryLocations, setDeliveryLocations] = useState<string[]>([]);
 
-  // --- NEW: Custom Delete Dialog State ---
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<string | null>(null);
 
@@ -52,12 +51,9 @@ function NewOrder() {
     setLoading(true);
     try {
       const res = await api.get("/orders");
-      console.log("Orders API:", res.data);
-
       const ordersData = res.data?.data || [];
       setOrders(ordersData);
 
-      // Extract unique values for autocomplete
       const uniqueClients = [...new Set(ordersData.map((o: any) => o.client_name).filter(Boolean))] as string[];
       const uniqueBrands = [...new Set(ordersData.map((o: any) => o.brand_name).filter(Boolean))] as string[];
       const uniqueProducts = [...new Set(ordersData.map((o: any) => o.product_name).filter(Boolean))] as string[];
@@ -84,48 +80,64 @@ function NewOrder() {
     clientName: "",
     brandName: "",
     productName: "",
-    quantity: "",
     deliveryLocation: "",
     notes: "",
-    surfaceFinish: "",
-    model: "",
-    size: "",
   });
+
+  const [lineItems, setLineItems] = useState([
+    { size: "", quantity: "", model: "", surfaceFinish: "Galvanized" }
+  ]);
 
   const handleSaveOrder = async () => {
     if (
       !formData.clientName ||
       !formData.brandName ||
       !formData.productName ||
-      !formData.quantity ||
-      !formData.deliveryLocation
+      !formData.deliveryLocation ||
+      lineItems.length === 0
     ) {
-      showToast("Please fill all required fields", "warning");
+      showToast("Please fill all required parent fields and add at least one line item", "warning");
       return;
     }
 
     try {
+      const totalQuantity = lineItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+
       const payload = {
         client_name: formData.clientName,
         brand_name: formData.brandName,
         product_name: formData.productName,
-        quantity: Number(formData.quantity),
+        quantity: totalQuantity,
         delivery_location: formData.deliveryLocation,
         notes: formData.notes,
-        surfaceFinishes: formData.surfaceFinish,
-        model: formData.model,
-        size: formData.size,
+        // Legacy fallbacks
+        surfaceFinishes: lineItems[0]?.surfaceFinish || "",
+        model: lineItems[0]?.model || "",
+        size: lineItems[0]?.size || "",
       };
+
+      let orderIdCustom = "";
 
       if (editId) {
         const response = await api.put(`/orders/${editId}`, payload);
-        console.log("Order Updated", response.data);
-        showToast("Order Updated Successfully", "success");
+        orderIdCustom = response.data.data.order_id_custom;
+        showToast("Order Updated Successfully (Line item sync requires backend PUT routes)", "success");
         setEditId(null);
       } else {
         const response = await api.post("/orders", payload);
-        console.log("Order Saved", response.data);
-        showToast("Order Saved Successfully", "success");
+        orderIdCustom = response.data.data.order_id_custom;
+
+        // POST LINE ITEMS
+        await Promise.all(lineItems.map(item =>
+          api.post(`/orders/${orderIdCustom}/items`, {
+            size: item.size,
+            quantity: Number(item.quantity),
+            model: item.model,
+            surface_finish: item.surfaceFinish
+          })
+        ));
+
+        showToast("Order & Line Items Saved Successfully", "success");
       }
 
       await fetchOrders();
@@ -134,13 +146,10 @@ function NewOrder() {
         clientName: "",
         brandName: "",
         productName: "",
-        quantity: "",
         deliveryLocation: "",
         notes: "",
-        model: "",
-        surfaceFinish: "",
-        size: "",
       });
+      setLineItems([{ size: "", quantity: "", model: "", surfaceFinish: "Galvanized" }]);
     } catch (error) {
       console.error(error);
       showToast(editId ? "Order Update Failed" : "Order Save Failed", "error");
@@ -150,7 +159,6 @@ function NewOrder() {
   const handleEditOrder = (order: any) => {
     setEditId(order.id);
 
-    // --- FIX: Ensure FormSelect options contain the incoming values ---
     if (order.client_name && !clientNames.includes(order.client_name)) {
       setClientNames((prev) => [...prev, order.client_name]);
     }
@@ -161,27 +169,33 @@ function NewOrder() {
       setProductNames((prev) => [...prev, order.product_name]);
     }
 
-    // Safely check for surface finish naming from API
-    const finishVal = order.surface_finishes || order.surfaceFinishes || order.surface_finish || "";
-    if (finishVal && !surfaceFinishes.includes(finishVal)) {
-      setSurfaceFinishes((prev) => [...prev, finishVal]);
-    }
-
     setFormData({
       clientName: order.client_name || "",
       brandName: order.brand_name || "",
       productName: order.product_name || "",
-      quantity: order.quantity?.toString() || "",
       deliveryLocation: order.delivery_location || "",
       notes: order.notes || "",
-      surfaceFinish: finishVal,
-      model: order.model || "",
-      size: order.size || "",
     });
+
+    if (order.items && order.items.length > 0) {
+      setLineItems(order.items.map((i: any) => ({
+        size: i.size || "",
+        quantity: i.quantity?.toString() || "",
+        model: i.model || "",
+        surfaceFinish: i.surface_finish || "Galvanized"
+      })));
+    } else {
+      setLineItems([{
+        size: order.size || "",
+        quantity: order.quantity?.toString() || "",
+        model: order.model || "",
+        surfaceFinish: order.surface_finishes || order.surfaceFinishes || order.surface_finish || "Galvanized"
+      }]);
+    }
+
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // --- NEW: Custom Delete Handlers ---
   const triggerDelete = (id: string) => {
     setOrderToDelete(id);
     setDeleteDialogOpen(true);
@@ -264,21 +278,6 @@ function NewOrder() {
           <div className="grid grid-cols-3 gap-8 mt-8">
             <div>
               <label className="block mb-2 font-medium">
-                Quantity (Pcs) <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                placeholder="Enter Quantity in Pcs"
-                value={formData.quantity}
-                onChange={(e) =>
-                  setFormData({ ...formData, quantity: e.target.value })
-                }
-                className="w-full border border-slate-200 rounded-xl px-4 py-3"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
                 Delivery Location <span className="text-red-500">*</span>
               </label>
               <input
@@ -298,7 +297,7 @@ function NewOrder() {
               </datalist>
             </div>
 
-            <div>
+            <div className="col-span-2">
               <label className="block mb-2 font-medium">Notes</label>
               <input
                 type="text"
@@ -310,48 +309,71 @@ function NewOrder() {
                 className="w-full border border-slate-200 rounded-xl px-4 py-3"
               />
             </div>
+          </div>
 
-            <div>
-              <label className="block mb-2 font-medium">Size</label>
-              <input
-                type="text"
-                placeholder="Enter size in inches"
-                value={formData.size}
-                onChange={(e) =>
-                  setFormData({ ...formData, size: e.target.value })
-                }
-                className="w-full border border-slate-200 rounded-xl px-4 py-3"
-              />
+          {/* LINE ITEMS TABLE */}
+          <div className="mt-8">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-slate-800">Order Line Items (Sizes)</h3>
+              <button
+                onClick={() => setLineItems([...lineItems, { size: "", quantity: "", model: "", surfaceFinish: "Galvanized" }])}
+                className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg font-medium hover:bg-blue-100 transition"
+              >
+                + Add Size
+              </button>
             </div>
 
-            <FormSelect
-              label="Surface Finish"
-              required
-              value={formData.surfaceFinish}
-              onChange={(value) =>
-                setFormData({ ...formData, surfaceFinish: value })
-              }
-              options={surfaceFinishes}
-              onAddOption={(newSurfaceFinish) => {
-                setSurfaceFinishes([...surfaceFinishes, newSurfaceFinish]);
-              }}
-            />
-
-            <div>
-              <label className="block mb-2 font-medium">Model</label>
-              <input
-                type="text"
-                placeholder="Enter model number"
-                value={formData.model}
-                onChange={(e) =>
-                  setFormData({ ...formData, model: e.target.value })
-                }
-                className="w-full border border-slate-200 rounded-xl px-4 py-3"
-              />
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="p-3 font-medium text-slate-600">Size</th>
+                    <th className="p-3 font-medium text-slate-600">Quantity (Pcs)</th>
+                    <th className="p-3 font-medium text-slate-600">Model</th>
+                    <th className="p-3 font-medium text-slate-600">Surface Finish</th>
+                    <th className="p-3 font-medium text-slate-600 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lineItems.map((item, index) => (
+                    <tr key={index} className="border-b border-slate-100 last:border-b-0">
+                      <td className="p-3">
+                        <input type="text" value={item.size} onChange={(e) => {
+                          const newItems = [...lineItems]; newItems[index].size = e.target.value; setLineItems(newItems);
+                        }} className="w-full border border-slate-200 rounded-lg px-3 py-2" placeholder='e.g. 1/2"' />
+                      </td>
+                      <td className="p-3">
+                        <input type="number" value={item.quantity} onChange={(e) => {
+                          const newItems = [...lineItems]; newItems[index].quantity = e.target.value; setLineItems(newItems);
+                        }} className="w-full border border-slate-200 rounded-lg px-3 py-2" placeholder="Qty" />
+                      </td>
+                      <td className="p-3">
+                        <input type="text" value={item.model} onChange={(e) => {
+                          const newItems = [...lineItems]; newItems[index].model = e.target.value; setLineItems(newItems);
+                        }} className="w-full border border-slate-200 rounded-lg px-3 py-2" placeholder="Model" />
+                      </td>
+                      <td className="p-3">
+                        <select value={item.surfaceFinish} onChange={(e) => {
+                          const newItems = [...lineItems]; newItems[index].surfaceFinish = e.target.value; setLineItems(newItems);
+                        }} className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white">
+                          {surfaceFinishes.map(f => <option key={f} value={f}>{f}</option>)}
+                        </select>
+                      </td>
+                      <td className="p-3 text-center">
+                        {lineItems.length > 1 && (
+                          <button onClick={() => setLineItems(lineItems.filter((_, i) => i !== index))} className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition">
+                            ✕
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
 
-          <div className="flex justify-end gap-4 mt-6">
+          <div className="flex justify-end gap-4 mt-8">
             <button
               onClick={() => {
                 setEditId(null);
@@ -359,13 +381,10 @@ function NewOrder() {
                   clientName: "",
                   brandName: "",
                   productName: "",
-                  quantity: "",
                   deliveryLocation: "",
                   notes: "",
-                  surfaceFinish: "",
-                  size: "",
-                  model: "",
                 });
+                setLineItems([{ size: "", quantity: "", model: "", surfaceFinish: "Galvanized" }]);
               }}
               className="px-8 py-3 border border-slate-300 rounded-xl font-medium hover:bg-slate-50 transition"
             >
@@ -391,7 +410,7 @@ function NewOrder() {
             <div>Client Name</div>
             <div>Brand</div>
             <div>Product</div>
-            <div>Quantity</div>
+            <div>Quantity/Sizes</div>
             <div>Date</div>
             <div>Status</div>
             <div>Actions</div>
@@ -416,7 +435,12 @@ function NewOrder() {
               <div>{order.client_name}</div>
               <div>{order.brand_name}</div>
               <div>{order.product_name}</div>
-              <div>{order.quantity}</div>
+              <div>
+                {order.items && order.items.length > 1
+                  ? <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-xs font-bold">{order.items.length} Sizes</span>
+                  : `${order.quantity} Pcs`
+                }
+              </div>
               <div>{new Date(order.created_at).toLocaleDateString()}</div>
               <div>
                 <StatusBadge
@@ -443,7 +467,6 @@ function NewOrder() {
         )}
       </SectionCard>
 
-      {/* --- NEW: Custom Tailwind Modal for Delete Confirmation --- */}
       {deleteDialogOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity">
           <div className="bg-white rounded-2xl p-6 w-[400px] shadow-2xl animate-in fade-in zoom-in-95 duration-200">

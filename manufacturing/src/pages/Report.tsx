@@ -21,7 +21,7 @@ function Report() {
         console.log("=== Report Page Data Fetch ===");
         console.log("Location state:", location.state);
         console.log("OrderId:", orderId);
-        
+
         // If data is passed via state, use it immediately
         if (location.state?.order || location.state?.processSequence) {
           console.log("Using state data:", location.state);
@@ -107,7 +107,7 @@ function Report() {
     processSequence.forEach((step: any) => {
       totalExtra += Number(step.fields.extra) || 0;
       totalRejection += Number(step.fields.rejection) || 0;
-      
+
       const rate = Number(step.fields.rate) || 0;
       const inputQty = Number(step.fields.inputQty) || 0;
       const stepCost = Number(step.fields.totalCost) || (rate * inputQty);
@@ -193,22 +193,66 @@ function Report() {
           </div>
           <div>
             <label className="block text-sm text-slate-500 mb-1">Order Date</label>
-            <p className="font-semibold text-lg">{order?.order_date || "N/A"}</p>
+            <p className="font-semibold text-lg">{order?.order_date || (order?.created_at ? new Date(order.created_at).toLocaleDateString() : "N/A")}</p>
           </div>
           <div>
-            <label className="block text-sm text-slate-500 mb-1">Quantity</label>
-            <p className="font-semibold text-lg">{order?.quantity || 0} {order?.unit || "Pcs"}</p>
+            <label className="block text-sm text-slate-500 mb-1">Quantity / Sizes</label>
+            <p className="font-semibold text-lg">
+              {order?.items && order.items.length > 1
+                ? `${order.quantity} Pcs (${order.items.length} Sizes)`
+                : `${order?.quantity || 0} Pcs`
+              }
+            </p>
           </div>
           <div>
             <label className="block text-sm text-slate-500 mb-1">Status</label>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-              order?.status === "Completed" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
-            }`}>
+            <span className={`px-3 py-1 rounded-full text-sm font-medium ${order?.status === "Completed" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
+              }`}>
               {order?.status || "In Progress"}
             </span>
           </div>
         </div>
       </SectionCard>
+
+      {/* NEW: Multi-Size Line Items Table (Only shows if order has multiple items) */}
+      {order?.items && order.items.length > 0 && (
+        <SectionCard>
+          <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+            <Package size={24} className="text-indigo-600" />
+            Line Items Breakdown
+          </h2>
+          <div className="border rounded-xl overflow-hidden">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-slate-50 border-b">
+                <tr>
+                  <th className="p-3 font-medium text-slate-600">Item ID</th>
+                  <th className="p-3 font-medium text-slate-600">Size</th>
+                  <th className="p-3 font-medium text-slate-600">Quantity</th>
+                  <th className="p-3 font-medium text-slate-600">Model</th>
+                  <th className="p-3 font-medium text-slate-600">Surface Finish</th>
+                  <th className="p-3 font-medium text-slate-600">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {order.items.map((item: any) => (
+                  <tr key={item.id} className="border-b last:border-b-0 hover:bg-slate-50">
+                    <td className="p-3 text-sm font-medium">{item.item_id_custom}</td>
+                    <td className="p-3 text-sm font-bold text-purple-600">{item.size || "N/A"}</td>
+                    <td className="p-3 text-sm">{item.quantity} Pcs</td>
+                    <td className="p-3 text-sm">{item.model || "N/A"}</td>
+                    <td className="p-3 text-sm">{item.surface_finish || "N/A"}</td>
+                    <td className="p-3 text-sm">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${item.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                        {item.status || "Pending"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </SectionCard>
+      )}
 
       {/* Process Flow Summary */}
       <SectionCard>
@@ -352,9 +396,8 @@ function Report() {
               <div className="font-medium">{step.processName}</div>
               <div>{step.partyName || "Not Assigned"}</div>
               <div>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  step.partyName ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"
-                }`}>
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${step.partyName ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"
+                  }`}>
                   {step.partyName ? "Assigned" : "Pending"}
                 </span>
               </div>
@@ -385,12 +428,11 @@ function Report() {
                 <div>{item.processName}</div>
                 <div>{item.quantity} {item.unit}</div>
                 <div>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    item.status === "Available" ? "bg-green-100 text-green-700" :
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${item.status === "Available" ? "bg-green-100 text-green-700" :
                     item.status === "In Process" ? "bg-blue-100 text-blue-700" :
-                    item.status === "Used" ? "bg-gray-100 text-gray-700" :
-                    "bg-gray-100 text-gray-700"
-                  }`}>
+                      item.status === "Used" ? "bg-gray-100 text-gray-700" :
+                        "bg-gray-100 text-gray-700"
+                    }`}>
                     {item.status}
                   </span>
                 </div>

@@ -147,86 +147,16 @@ function Reports() {
 
   const summary = calculateSummary();
 
-  // Calculate advanced analytics
-  const calculateAnalytics = () => {
-    // Orders per party
-    const ordersPerParty: any = {};
-    parties.forEach((party: any) => {
-      if (filteredOrders.some((o: any) => o.order_id_custom === party.current_order)) {
-        if (!ordersPerParty[party.party_name]) {
-          ordersPerParty[party.party_name] = 0;
-        }
-        ordersPerParty[party.party_name]++;
-      }
-    });
-
-    // Processes per party
-    const processesPerParty: any = {};
-    parties.forEach((party: any) => {
-      if (filteredOrders.some((o: any) => o.order_id_custom === party.current_order)) {
-        if (!processesPerParty[party.party_name]) {
-          processesPerParty[party.party_name] = 0;
-        }
-        processesPerParty[party.party_name]++;
-      }
-    });
-
-    // Order completion time (days)
-    const orderCompletionTimes = filteredOrders.map((order: any) => {
-      const orderDate = order.order_date ? new Date(order.order_date) : new Date(order.created_at);
-      const now = new Date();
-      const daysDiff = Math.floor((now.getTime() - orderDate.getTime()) / (1000 * 60 * 60 * 24));
-      return {
-        orderId: order.order_id_custom,
-        days: daysDiff,
-        status: order.status
-      };
-    });
-
-    // Average completion time
-    const completedOrders = orderCompletionTimes.filter(o => o.status === "Completed");
-    const avgCompletionTime = completedOrders.length > 0
-      ? Math.round(completedOrders.reduce((sum, o) => sum + o.days, 0) / completedOrders.length)
-      : 0;
-
-    // Weekly order count
-    const weeklyOrders = filteredOrders.filter(order => {
-      const orderDate = new Date(order.order_date);
-      const now = new Date();
-      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      return orderDate >= weekAgo;
-    }).length;
-
-    // Monthly order count
-    const monthlyOrders = filteredOrders.filter(order => {
-      const orderDate = new Date(order.order_date);
-      const now = new Date();
-      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      return orderDate >= monthAgo;
-    }).length;
-
-    return {
-      ordersPerParty,
-      processesPerParty,
-      orderCompletionTimes,
-      avgCompletionTime,
-      weeklyOrders,
-      monthlyOrders
-    };
-  };
-
-  const analytics = calculateAnalytics();
-
   const exportToCSV = () => {
-    const headers = ["Order ID", "Client Name", "Brand", "Product", "Quantity", "Status", "Order Date"];
+    const headers = ["Order ID", "Client Name", "Brand", "Product", "Quantity (Sizes)", "Status", "Order Date"];
     const rows = filteredOrders.map(order => [
       order.order_id_custom,
       order.client_name,
       order.brand_name,
       order.product_name,
-      order.quantity,
+      order.items && order.items.length > 1 ? `${order.quantity} (${order.items.length} Sizes)` : order.quantity,
       order.status,
-      order.order_date
+      order.order_date || (order.created_at ? new Date(order.created_at).toLocaleDateString() : "N/A")
     ]);
 
     const csvContent = [
@@ -296,7 +226,7 @@ function Reports() {
       order.client_name,
       order.brand_name,
       order.product_name,
-      order.quantity,
+      order.items && order.items.length > 1 ? `${order.quantity} (${order.items.length} Sizes)` : order.quantity,
       order.status,
       order.order_date || (order.created_at ? new Date(order.created_at).toLocaleDateString() : "N/A")
     ]);
@@ -540,13 +470,24 @@ function Reports() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredOrders.map((order, index) => (
+                    {filteredOrders.map((order: any, index: number) => (
                       <tr key={order.id} className={index % 2 === 0 ? "bg-white" : "bg-slate-50"}>
                         <td className="border border-slate-300 px-4 py-2">{order.order_id_custom}</td>
                         <td className="border border-slate-300 px-4 py-2">{order.client_name}</td>
                         <td className="border border-slate-300 px-4 py-2">{order.brand_name}</td>
                         <td className="border border-slate-300 px-4 py-2">{order.product_name}</td>
-                        <td className="border border-slate-300 px-4 py-2">{order.quantity}</td>
+                        <td className="border border-slate-300 px-4 py-2">
+                          {order.items && order.items.length > 1 ? (
+                            <div className="flex items-center gap-2">
+                              {order.quantity}
+                              <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-bold">
+                                {order.items.length} Sizes
+                              </span>
+                            </div>
+                          ) : (
+                            order.quantity
+                          )}
+                        </td>
                         <td className="border border-slate-300 px-4 py-2">
                           <span className={`px-2 py-1 rounded text-xs font-medium ${order.status === "Completed" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
                             }`}>
@@ -565,8 +506,8 @@ function Reports() {
             <div className="mb-6">
               <h4 className="font-semibold text-lg mb-3 text-slate-700">Process Details</h4>
               {(() => {
-                const processData = [];
-                filteredOrders.forEach((order) => {
+                const processData: any[] = [];
+                filteredOrders.forEach((order: any) => {
                   const orderProcesses = processSequences.filter((p: any) => p.order_id === order.order_id_custom);
                   orderProcesses.forEach((process: any) => {
                     const party = parties.find((p: any) => p.id === process.party_id);
@@ -592,8 +533,6 @@ function Reports() {
                         <th className="border border-slate-300 px-4 py-2 text-left">Quantity (Pcs)</th>
                         <th className="border border-slate-300 px-4 py-2 text-left">Size</th>
                         <th className="border border-slate-300 px-4 py-2 text-left">Rate</th>
-                        {/* <th className="border border-slate-300 px-4 py-2 text-left">Total Cost</th> */}
-
                         <th className="border border-slate-300 px-4 py-2 text-left">Status</th>
                       </tr>
                     </thead>
@@ -608,11 +547,6 @@ function Reports() {
                           <td className="border border-slate-300 px-4 py-2">
                             {process.rate ? `₹${Number(process.rate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-"}
                           </td>
-                          {/* <td className="border border-slate-300 px-4 py-2">
-                            {Number(process.total_cost || (process.rate * process.input_qty)) > 0
-                              ? `₹${Number(process.total_cost || (process.rate * process.input_qty)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                              : "-"}
-                          </td> */}
                           <td className="border border-slate-300 px-4 py-2">
                             <span className={`px-2 py-1 rounded text-xs font-medium ${process.status === "active" ? "bg-green-100 text-green-700" :
                               process.status === "completed" ? "bg-blue-100 text-blue-700" :
@@ -644,7 +578,7 @@ function Reports() {
                   </tr>
                 </thead>
                 <tbody>
-                  {parties.map((party, index) => (
+                  {parties.map((party: any, index: number) => (
                     <tr key={party.id} className={index % 2 === 0 ? "bg-white" : "bg-slate-50"}>
                       <td className="border border-slate-300 px-4 py-2 font-medium">{party.party_name}</td>
                       <td className="border border-slate-300 px-4 py-2">{party.current_order || "N/A"}</td>
@@ -681,11 +615,11 @@ function Reports() {
               <div>Client Name</div>
               <div>Brand</div>
               <div>Product</div>
-              <div>Quantity</div>
+              <div>Quantity/Sizes</div>
               <div>Status</div>
             </div>
 
-            {filteredOrders.map((order) => (
+            {filteredOrders.map((order: any) => (
               <div
                 key={order.id}
                 className="grid grid-cols-6 gap-4 py-4 px-2 border-b border-slate-100 items-center"
@@ -694,7 +628,12 @@ function Reports() {
                 <div>{order.client_name}</div>
                 <div>{order.brand_name}</div>
                 <div>{order.product_name}</div>
-                <div>{order.quantity}</div>
+                <div>
+                  {order.items && order.items.length > 1
+                    ? <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-xs font-bold">{order.items.length} Sizes</span>
+                    : `${order.quantity} Pcs`
+                  }
+                </div>
                 <div>
                   <StatusBadge
                     text={order.status}

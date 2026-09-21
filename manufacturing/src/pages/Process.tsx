@@ -19,13 +19,22 @@ import { useLocation } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/contexts/ToastContext";
 
-
 function Process() {
   const { showToast } = useToast();
 
   const location = useLocation();
   const navigate = useNavigate();
   const order = location.state?.order;
+
+  // Multi-size context mapping
+  const isLegacy = !order?.items || order.items.length === 0;
+  const [selectedItemId, setSelectedItemId] = useState<string>(
+    isLegacy ? "" : order?.items[0]?.item_id_custom
+  );
+
+  const currentItem = isLegacy
+    ? order
+    : order?.items?.find((i: any) => i.item_id_custom === selectedItemId) || order?.items?.[0];
 
   const [showProcessModal, setShowProcessModal] = useState(false);
   const [processNames, setProcessNames] = useState([
@@ -46,7 +55,6 @@ function Process() {
 
   const [parties, setParties] = useState<any[]>([]);
 
-  // Fetch parties from API
   const fetchParties = async () => {
     try {
       const response = await api.get("/parties");
@@ -62,109 +70,112 @@ function Process() {
     return [];
   };
 
+  const defaultSequence = [
+    { id: "process-1", processName: "Raw Material", processType: "basic", partyName: "", fields: { inputQty: 0, rejection: 0, extra: 0, output: 0, kg: 0, pieces: 0, size_unit: "Pieces" } },
+    { id: "process-2", processName: "Cutting", processType: "withSize", partyName: "", fields: { size: "", size_unit: "Pieces", kg: 0, pieces: 0, inputQty: 0, rejection: 0, extra: 0, output: 0 } },
+    { id: "process-3", processName: "Drilling", processType: "cutting", partyName: "", fields: { size: "", size_unit: "Pieces", kg: 0, pieces: 0, inputQty: 0, cutting: 0, hole: 0, rate: 0, rejection: 0, extra: 0, output: 0 } },
+    { id: "process-4", processName: "Polish", processType: "finishing", partyName: "", fields: { size: "", size_unit: "Pieces", kg: 0, pieces: 0, inputQty: 0, finishing: "", rate: 0, totalCost: 0, rejection: 0, extra: 0, output: 0 } },
+    { id: "process-5", processName: "Packing", processType: "packing", partyName: "", fields: { size: "", size_unit: "Pieces", kg: 0, pieces: 0, inputQty: 0, piecesPerBox: 0, totalBoxes: 0 } },
+  ];
+
+  const [productProcessSequence, setProductProcessSequence] = useState<any[]>(defaultSequence);
+
   useEffect(() => {
     const initData = async () => {
       const partiesData = await fetchParties();
       if (order?.order_id_custom) {
-        await fetchProcessSequences(order.order_id_custom, partiesData);
+        const endpoint = isLegacy
+          ? `/process-sequences/order/${order.order_id_custom}`
+          : `/process-sequences/item/${selectedItemId}`;
+
+        try {
+          const response = await api.get(endpoint);
+          if (response.data?.success && response.data.data.length > 0) {
+            const savedSequences = response.data.data;
+
+            const newSequence = savedSequences.map((saved: any) => {
+              const matchedParty = partiesData.find(p => p.id === saved.party_id);
+              const fields: any = {};
+              const dbToFieldMap: Record<string, any> = {
+                inputQty: Number(saved.input_qty) || 0,
+                output: Number(saved.output_qty) || 0,
+                rejection: Number(saved.rejection) || 0,
+                extra: Number(saved.extra) || 0,
+                size: saved.size || "",
+                size_unit: saved.size_unit || "Pieces",
+                kg: Number(saved.kg) || 0,
+                pieces: Number(saved.pieces) || 0,
+                rate: Number(saved.rate) || 0,
+                totalCost: Number(saved.total_cost) || 0,
+                totalBoxes: Number(saved.total_boxes) || 0,
+                cutting: Number(saved.cutting) || 0,
+                hole: Number(saved.hole) || 0,
+                finishing: saved.finishing || "",
+                piecesPerBox: Number(saved.pieces_per_box) || 0,
+              };
+
+              const processConfig = PROCESS_TYPES[saved.process_type as keyof typeof PROCESS_TYPES];
+
+              if (processConfig) {
+                processConfig.fields.forEach(f => {
+                  if (f.key !== "partyName") {
+                    fields[f.key] = dbToFieldMap[f.key];
+                  }
+                });
+              } else if (saved.process_type && saved.process_type.startsWith("custom:")) {
+                const selectedKeys = saved.process_type.split(":")[1].split(",");
+                selectedKeys.forEach((key: string) => {
+                  if (dbToFieldMap[key] !== undefined) {
+                    fields[key] = dbToFieldMap[key];
+                  }
+                });
+              } else {
+                const basicKeys = ["inputQty", "output", "rejection", "extra"];
+                Object.keys(dbToFieldMap).forEach(key => {
+                  if (basicKeys.includes(key) || (typeof dbToFieldMap[key] === "number" && dbToFieldMap[key] > 0) || (typeof dbToFieldMap[key] === "string" && dbToFieldMap[key] !== "" && dbToFieldMap[key] !== "Pieces")) {
+                    fields[key] = dbToFieldMap[key];
+                  }
+                });
+              }
+
+              return {
+                id: `process-${saved.id}`,
+                processName: saved.process_name || "",
+                processType: saved.process_type || "basic",
+                partyName: matchedParty ? matchedParty.party_name : "",
+                fields: fields,
+                activeFields: saved.process_type && saved.process_type.startsWith("custom:")
+                  ? saved.process_type.split(":")[1].split(",")
+                  : undefined
+              };
+            });
+
+            setProductProcessSequence(newSequence);
+          } else {
+            // Reset to defaults if switching to a line item that has no saved process yet
+            setProductProcessSequence(defaultSequence);
+          }
+        } catch (error) {
+          console.error("Error fetching process sequences:", error);
+        }
       }
     };
     initData();
-  }, [order]);
+  }, [order, selectedItemId]);
 
-  // Fetch existing process sequences from API and update default processes
-  const fetchProcessSequences = async (orderId: string, currentParties: any[]) => {
-    try {
-      const response = await api.get(`/process-sequences/order/${orderId}`);
-      if (response.data?.success && response.data.data.length > 0) {
-        const savedSequences = response.data.data;
-
-        // Reconstruct the sequence array based on what's in the database
-        const newSequence = savedSequences.map((saved: any) => {
-          // Find the party name from the party_id
-          const matchedParty = currentParties.find(p => p.id === saved.party_id);
-
-          // Only include fields that make sense for this process type
-          const fields: any = {};
-
-          // Map database columns back to frontend field keys
-          const dbToFieldMap: Record<string, any> = {
-            inputQty: Number(saved.input_qty) || 0,
-            output: Number(saved.output_qty) || 0,
-            rejection: Number(saved.rejection) || 0,
-            extra: Number(saved.extra) || 0,
-            size: saved.size || "",
-            size_unit: saved.size_unit || "Pieces",
-            kg: Number(saved.kg) || 0,
-            pieces: Number(saved.pieces) || 0,
-            rate: Number(saved.rate) || 0,
-            totalCost: Number(saved.total_cost) || 0,
-            totalBoxes: Number(saved.total_boxes) || 0,
-            cutting: Number(saved.cutting) || 0,
-            hole: Number(saved.hole) || 0,
-            finishing: saved.finishing || "",
-            piecesPerBox: Number(saved.pieces_per_box) || 0,
-          };
-
-          const processConfig = PROCESS_TYPES[saved.process_type as keyof typeof PROCESS_TYPES];
-
-          if (processConfig) {
-            // It's a standard process, so only pick its specific fields
-            processConfig.fields.forEach(f => {
-              if (f.key !== "partyName") {
-                fields[f.key] = dbToFieldMap[f.key];
-              }
-            });
-          } else if (saved.process_type && saved.process_type.startsWith("custom:")) {
-            // It's a custom process, and we saved the exact fields inside the process_type string!
-            const selectedKeys = saved.process_type.split(":")[1].split(",");
-            selectedKeys.forEach((key: string) => {
-              if (dbToFieldMap[key] !== undefined) {
-                fields[key] = dbToFieldMap[key];
-              }
-            });
-          } else {
-            // Fallback for old custom processes
-            const basicKeys = ["inputQty", "output", "rejection", "extra"];
-            Object.keys(dbToFieldMap).forEach(key => {
-              if (basicKeys.includes(key) || (typeof dbToFieldMap[key] === "number" && dbToFieldMap[key] > 0) || (typeof dbToFieldMap[key] === "string" && dbToFieldMap[key] !== "" && dbToFieldMap[key] !== "Pieces")) {
-                fields[key] = dbToFieldMap[key];
-              }
-            });
-          }
-
-          return {
-            id: `process-${saved.id}`,
-            processName: saved.process_name || "",
-            processType: saved.process_type || "basic",
-            partyName: matchedParty ? matchedParty.party_name : "",
-            fields: fields,
-            activeFields: saved.process_type && saved.process_type.startsWith("custom:")
-              ? saved.process_type.split(":")[1].split(",")
-              : undefined
-          };
-        });
-
-        setProductProcessSequence(newSequence);
-      }
-    } catch (error) {
-      console.error("Error fetching process sequences:", error);
-    }
-  };
-
-  // Save process sequences to API
   const saveProcessSequences = async (sequenceToSave = productProcessSequence) => {
     try {
-      // First delete existing sequences for this order
-      if (order?.order_id_custom) {
+      if (isLegacy) {
         await api.delete(`/process-sequences/order/${order.order_id_custom}`);
+      } else {
+        await api.delete(`/process-sequences/item/${selectedItemId}`);
       }
 
-      // Then save new sequences
       for (let i = 0; i < sequenceToSave.length; i++) {
         const step = sequenceToSave[i];
         const payload = {
           order_id: order?.order_id_custom,
+          order_item_id: isLegacy ? null : selectedItemId,
           process_name: step.processName,
           process_type: step.processType,
           sequence_number: i + 1,
@@ -192,14 +203,6 @@ function Process() {
       showToast("Error saving process sequences", "error");
     }
   };
-
-  const [productProcessSequence, setProductProcessSequence] = useState<any[]>([
-    { id: "process-1", processName: "Raw Material", processType: "basic", partyName: "", fields: { inputQty: 0, rejection: 0, extra: 0, output: 0, kg: 0, pieces: 0, size_unit: "Pieces" } },
-    { id: "process-2", processName: "Cutting", processType: "withSize", partyName: "", fields: { size: "", size_unit: "Pieces", kg: 0, pieces: 0, inputQty: 0, rejection: 0, extra: 0, output: 0 } },
-    { id: "process-3", processName: "Drilling", processType: "cutting", partyName: "", fields: { size: "", size_unit: "Pieces", kg: 0, pieces: 0, inputQty: 0, cutting: 0, hole: 0, rate: 0, rejection: 0, extra: 0, output: 0 } },
-    { id: "process-4", processName: "Polish", processType: "finishing", partyName: "", fields: { size: "", size_unit: "Pieces", kg: 0, pieces: 0, inputQty: 0, finishing: "", rate: 0, totalCost: 0, rejection: 0, extra: 0, output: 0 } },
-    { id: "process-5", processName: "Packing", processType: "packing", partyName: "", fields: { size: "", size_unit: "Pieces", kg: 0, pieces: 0, inputQty: 0, piecesPerBox: 0, totalBoxes: 0 } },
-  ]);
 
   const [inventoryItems, setInventoryItems] = useState([
     {
@@ -234,8 +237,6 @@ function Process() {
     },
   ]);
 
-
-  // Handle field changes and trigger calculations
   const handleFieldChange = (stepId: string, fieldKey: string, value: any) => {
     setProductProcessSequence((prevSequence) => {
       return prevSequence.map((step) => {
@@ -247,12 +248,9 @@ function Process() {
 
         const updatedFields = { ...step.fields, [fieldKey]: value };
 
-        // Find which fields are actively selected for this specific step
         const activeKeys = step.activeFields ||
           PROCESS_TYPES[step.processType as keyof typeof PROCESS_TYPES]?.fields?.map((f: any) => f.key) ||
           Object.keys(updatedFields);
-
-        // ONLY calculate formulas for fields that the user explicitly added to this step
 
         if (activeKeys.includes('cutting') && activeKeys.includes('size') && updatedFields.size > 0) {
           updatedFields.cutting = (updatedFields.inputQty || 0) / updatedFields.size;
@@ -267,7 +265,6 @@ function Process() {
         }
 
         if (activeKeys.includes('output')) {
-          // If they removed rejection or extra fields, treat them as 0
           const rej = activeKeys.includes('rejection') ? (updatedFields.rejection || 0) : 0;
           const ext = activeKeys.includes('extra') ? (updatedFields.extra || 0) : 0;
           updatedFields.output = (updatedFields.inputQty || 0) - rej - ext;
@@ -278,14 +275,12 @@ function Process() {
     });
   };
 
-  // Handle party change
   const handlePartyChange = (stepId: string, partyName: string) => {
     setProductProcessSequence((prevSequence) =>
       prevSequence.map((step) => (step.id === stepId ? { ...step, partyName } : step))
     );
   };
 
-  // Handle adding a new party
   const handleAddParty = async (partyName: string) => {
     try {
       const response = await api.post("/parties", { party_name: partyName });
@@ -300,12 +295,10 @@ function Process() {
     }
   };
 
-  // Handle inventory selection
   const handleInventorySelect = (stepId: string, item: any) => {
     handleFieldChange(stepId, "inputQty", item.quantity);
   };
 
-  // Calculate totals across all processes
   const calculateTotals = () => {
     let totalExtra = 0;
     let totalRejection = 0;
@@ -333,84 +326,65 @@ function Process() {
       />
 
       <SectionCard>
-
         <div className="grid grid-cols-7 gap-6 items-center">
+          <div>
+            <p className="text-sm text-slate-500">Order No.</p>
+            <h3 className="font-semibold">{order?.order_id_custom}</h3>
+          </div>
 
           <div>
-            <p className="text-sm text-slate-500">
-              Order No.
-            </p>
+            <p className="text-sm text-slate-500">Order Date</p>
             <h3 className="font-semibold">
-              {order?.order_id_custom}
+              {new Date(order?.created_at).toLocaleDateString()}
             </h3>
           </div>
 
           <div>
-            <p className="text-sm text-slate-500">
-              Order Date
-            </p>
-            <h3 className="font-semibold">
-              {new Date(
-                order?.created_at
-              ).toLocaleDateString()}
-            </h3>
+            <p className="text-sm text-slate-500">Party Name</p>
+            <h3 className="font-semibold text-blue-600">{order?.client_name}</h3>
           </div>
 
           <div>
-            <p className="text-sm text-slate-500">
-              Delivery Date
-            </p>
-            <h3 className="font-semibold">
-              30 May 2024
-            </h3>
+            <p className="text-sm text-slate-500">Qty (Current Size)</p>
+            <h3 className="font-semibold">{currentItem?.quantity} Pcs</h3>
           </div>
 
           <div>
-            <p className="text-sm text-slate-500">
-              Party Name (From Order)
-            </p>
-            <h3 className="font-semibold text-blue-600">
-              {order?.client_name}
-            </h3>
+            <p className="text-sm text-slate-500">Size</p>
+            <h3 className="font-semibold text-purple-600">{currentItem?.size || 'N/A'}</h3>
           </div>
 
-          <div>
-            <p className="text-sm text-slate-500">
-              Total Qty (Order)
-            </p>
-            <h3 className="font-semibold">
-              {order?.quantity} Pcs
-            </h3>
-          </div>
+          {!isLegacy && (
+            <div className="col-span-1">
+              <p className="text-sm text-slate-500 mb-1">Select Line Item</p>
+              <select
+                value={selectedItemId}
+                onChange={(e) => setSelectedItemId(e.target.value)}
+                className="w-full border-2 border-blue-200 bg-blue-50 text-blue-800 font-semibold rounded-lg px-2 py-1"
+              >
+                {order.items.map((item: any) => (
+                  <option key={item.item_id_custom} value={item.item_id_custom}>
+                    {item.size} — {item.quantity} pcs
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
-          <div>
-            <p className="text-sm text-slate-500">
-              Status
-            </p>
-
-            <h3 className="font-semibold text-green-600">
-              {order?.status}
-            </h3>
-          </div>
-
-          <div className="flex justify-end">
+          <div className="flex justify-end col-span-1">
             <button
               onClick={() => navigate("/process")}
-              className="px-5 py-3 border rounded-xl hover:bg-slate-50"
+              className="px-5 py-3 border rounded-xl hover:bg-slate-50 whitespace-nowrap"
             >
-              ← Back to Orders
+              ← Back
             </button>
           </div>
-
         </div>
-
       </SectionCard>
 
 
       <SectionCard>
-
         <div className="grid grid-cols-4 gap-6 items-end">
-
           <div className="col-span-2">
             <label className="block text-sm font-medium mb-2">
               Product Name (From Inventory)
@@ -420,13 +394,7 @@ function Process() {
               <input
                 value={order?.product_name || ""}
                 readOnly
-                className="
-      flex-1
-      border
-      rounded-xl
-      px-4 py-3
-      bg-slate-50
-    "
+                className="flex-1 border rounded-xl px-4 py-3 bg-slate-50"
               />
               <button
                 onClick={() => setShowProcessModal(true)}
@@ -438,7 +406,7 @@ function Process() {
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 mt-4">
+          <div className="flex justify-end gap-3 mt-4 col-span-2">
             <button
               onClick={() => saveProcessSequences()}
               className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-medium shadow hover:bg-blue-700 transition-colors"
@@ -446,13 +414,11 @@ function Process() {
               Save Process Details
             </button>
           </div>
-
         </div>
-
       </SectionCard>
 
       <h2 className="text-xl font-bold mt-8 mb-4">
-        PROCESS FLOW
+        PROCESS FLOW {isLegacy ? "" : `- ${currentItem?.size}`}
       </h2>
 
       <SectionCard>
@@ -477,25 +443,15 @@ function Process() {
       </SectionCard>
 
       <SectionCard>
-
         <div className="grid grid-cols-3 gap-8">
-
-          {/* Total Extra */}
-
           <div className="flex items-center gap-4">
-
             <Package size={32} className="text-green-600" />
-
             <div>
-              <p className="text-sm text-slate-500">
-                Total Added To Inventory (Extra)
-              </p>
-
+              <p className="text-sm text-slate-500">Total Added To Inventory (Extra)</p>
               <h2 className="text-3xl font-bold">
                 {totalExtra}  <span className="text-lg font-normal">Pcs</span>
               </h2>
             </div>
-
             {Number(totalExtra) > 0 && (
               <button
                 onClick={async () => {
@@ -521,54 +477,32 @@ function Process() {
                 Send to Inventory
               </button>
             )}
-
           </div>
 
-          {/* Rejection */}
-
           <div className="flex items-center gap-4">
-
             <Trash2 size={32} className="text-red-600" />
-
             <div>
-              <p className="text-sm text-slate-500">
-                Total Rejection (Scrap)
-              </p>
-
+              <p className="text-sm text-slate-500">Total Rejection (Scrap)</p>
               <h2 className="text-3xl font-bold">
                 {totalRejection} <span className="text-lg font-normal">Pcs</span>
               </h2>
             </div>
-
           </div>
 
-          {/* Final Output */}
-
           <div className="flex items-center gap-4">
-
             <Archive size={32} className="text-blue-600" />
-
             <div>
-              <p className="text-sm text-slate-500">
-                Final Output (Boxes)
-              </p>
-
+              <p className="text-sm text-slate-500">Final Output (Boxes)</p>
               <h2 className="text-3xl font-bold">
                 {finalOutput}<span className="text-lg font-normal">Box</span>
               </h2>
             </div>
-
           </div>
-
         </div>
-
       </SectionCard>
 
       <SectionCard>
-        <h2 className="text-xl font-semibold mb-6">
-          Available Inventory
-        </h2>
-
+        <h2 className="text-xl font-semibold mb-6">Available Inventory</h2>
         <div className="bg-slate-50 rounded-xl px-4 py-4">
           <div className="grid grid-cols-6 gap-4 text-sm font-semibold text-slate-600">
             <div>Party Name</div>
@@ -593,9 +527,7 @@ function Process() {
                 <div>{item.orderName}</div>
                 <div>{item.orderDate}</div>
                 <div>{item.processName}</div>
-                <div>
-                  {item.quantity} {item.unit}
-                </div>
+                <div>{item.quantity} {item.unit}</div>
                 <div>
                   <span
                     className={`px-2 py-1 rounded-full text-xs font-medium ${item.status === "Available"
@@ -615,9 +547,7 @@ function Process() {
       </SectionCard>
 
       <SectionCard>
-        <h2 className="text-xl font-semibold mb-6">
-          Process Flow with Inventory
-        </h2>
+        <h2 className="text-xl font-semibold mb-6">Process Flow with Inventory</h2>
         <ProcessFlowVisualization
           processSequence={productProcessSequence}
           inventoryItems={inventoryItems}
@@ -630,7 +560,6 @@ function Process() {
         onClose={() => setShowProcessModal(false)}
         productName={order?.product_name || "Product"}
         onSave={(sequence) => {
-          // Link process outputs to next process inputs
           const updatedSequence = sequence.map((step, index) => {
             if (index > 0) {
               const prevStep = sequence[index - 1];
@@ -654,11 +583,8 @@ function Process() {
             return step;
           });
           setProductProcessSequence(updatedSequence);
-
-          // Save to backend immediately
           saveProcessSequences(updatedSequence);
 
-          // Deduct inventory items that are used
           sequence.forEach((step) => {
             if (step.inventoryItemId && step.inventoryQuantity) {
               setInventoryItems((prevItems) =>
@@ -685,8 +611,6 @@ function Process() {
           }
         }}
       />
-
-
     </>
   );
 }

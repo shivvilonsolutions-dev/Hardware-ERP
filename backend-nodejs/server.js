@@ -164,6 +164,8 @@ async function initDB() {
     )
   `);
 
+  await pool.query(`ALTER TABLE process_sequences ADD COLUMN IF NOT EXISTS order_item_id VARCHAR(50);`).catch(() => { });
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS process_sequences (
       id SERIAL PRIMARY KEY,
@@ -229,6 +231,22 @@ async function initDB() {
     )
   `);
 
+  // --- ADD THIS AFTER orders TABLE CREATION ---
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS order_items (
+      id SERIAL PRIMARY KEY,
+      order_id VARCHAR(50), 
+      size VARCHAR(255),
+      model VARCHAR(255),
+      surface_finish VARCHAR(255),
+      quantity INTEGER,
+      status VARCHAR(50) DEFAULT 'Pending',
+      item_id_custom VARCHAR(50) UNIQUE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+
   console.log('Database tables initialized');
 }
 
@@ -246,7 +264,15 @@ app.get('/health', (req, res) => {
 // Orders routes
 app.get('/api/orders', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM orders ORDER BY created_at DESC');
+    // UPDATE THIS QUERY:
+    const result = await pool.query(`
+      SELECT o.*, 
+      COALESCE(
+        (SELECT json_agg(row_to_json(oi)) FROM order_items oi WHERE oi.order_id = o.order_id_custom),
+        '[]'::json
+      ) as items
+      FROM orders o ORDER BY o.created_at DESC
+    `);
     res.json({ success: true, data: result.rows });
   } catch (err) {
     console.error(err);
@@ -393,6 +419,50 @@ app.delete('/api/parties/:id', async (req, res) => {
   }
 });
 
+
+
+// --- NEW ORDER ITEMS ROUTES ---
+app.post('/api/orders/:orderId/items', async (req, res) => {
+  try {
+    const { size, model, surface_finish, quantity, status } = req.body;
+    const order_id = req.params.orderId;
+
+    // Generate custom item ID (e.g., ORD-1001-1)
+    const lastItem = await pool.query('SELECT id FROM order_items ORDER BY id DESC LIMIT 1');
+    const lastId = lastItem.rows.length > 0 ? lastItem.rows[0].id : 0;
+    const item_id_custom = `${order_id}-${lastId + 1}`;
+
+    const result = await pool.query(
+      'INSERT INTO order_items (order_id, size, model, surface_finish, quantity, status, item_id_custom) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [order_id, size, model, surface_finish, quantity || 0, status || 'Pending', item_id_custom]
+    );
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// --- NEW SEQUENCE ENDPOINT FOR ITEMS ---
+app.get('/api/process-sequences/item/:item_id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM process_sequences WHERE order_item_id = $1 ORDER BY sequence_number', [req.params.item_id]);
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/process-sequences/item/:item_id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM process_sequences WHERE order_item_id = $1', [req.params.item_id]);
+    res.json({ success: true, message: 'Process sequences deleted successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 // Materials routes
 app.get('/api/materials', async (req, res) => {
   try {
@@ -564,14 +634,13 @@ app.get('/api/process-sequences/:id', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-
 app.post('/api/process-sequences', async (req, res) => {
   try {
-    const { order_id, process_name, process_type, sequence_number, party_id, input_qty, output_qty, rejection, extra, size, size_unit, kg, pieces, rate, total_cost, total_boxes, cutting, hole, finishing, pieces_per_box, status } = req.body;
+    const { order_id, order_item_id, process_name, process_type, sequence_number, party_id, input_qty, output_qty, rejection, extra, size, size_unit, kg, pieces, rate, total_cost, total_boxes, cutting, hole, finishing, pieces_per_box, status } = req.body;
 
     const result = await pool.query(
-      'INSERT INTO process_sequences (order_id, process_name, process_type, sequence_number, party_id, input_qty, output_qty, rejection, extra, size, size_unit, kg, pieces, rate, total_cost, total_boxes, cutting, hole, finishing, pieces_per_box, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING *',
-      [order_id, process_name, process_type, sequence_number, party_id, input_qty || 0, output_qty || 0, rejection || 0, extra || 0, size, size_unit || 'Pieces', kg || 0, pieces || 0, rate || 0, total_cost || 0, total_boxes || 0, cutting || 0, hole || 0, finishing, pieces_per_box || 0, status || 'pending']
+      'INSERT INTO process_sequences (order_id, order_item_id, process_name, process_type, sequence_number, party_id, input_qty, output_qty, rejection, extra, size, size_unit, kg, pieces, rate, total_cost, total_boxes, cutting, hole, finishing, pieces_per_box, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) RETURNING *',
+      [order_id, order_item_id, process_name, process_type, sequence_number, party_id, input_qty || 0, output_qty || 0, rejection || 0, extra || 0, size, size_unit || 'Pieces', kg || 0, pieces || 0, rate || 0, total_cost || 0, total_boxes || 0, cutting || 0, hole || 0, finishing, pieces_per_box || 0, status || 'pending']
     );
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {

@@ -353,11 +353,23 @@ function NewOrder() {
                         }} className="w-full border border-slate-200 rounded-lg px-3 py-2" placeholder="Model" />
                       </td>
                       <td className="p-3">
-                        <select value={item.surfaceFinish} onChange={(e) => {
-                          const newItems = [...lineItems]; newItems[index].surfaceFinish = e.target.value; setLineItems(newItems);
-                        }} className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white">
-                          {surfaceFinishes.map(f => <option key={f} value={f}>{f}</option>)}
-                        </select>
+                        <FormSelect
+                          label=""
+                          placeholder="Finish"
+                          value={item.surfaceFinish}
+                          options={surfaceFinishes}
+                          onChange={(value) => {
+                            const newItems = [...lineItems];
+                            newItems[index].surfaceFinish = value;
+                            setLineItems(newItems);
+                          }}
+                          onAddOption={(newFinish) => {
+                            setSurfaceFinishes([...surfaceFinishes, newFinish]);
+                            const newItems = [...lineItems];
+                            newItems[index].surfaceFinish = newFinish;
+                            setLineItems(newItems);
+                          }}
+                        />
                       </td>
                       <td className="p-3 text-center">
                         {lineItems.length > 1 && (

@@ -72,12 +72,14 @@ function FormSelect({
 
   return (
     <div className="relative">
-      <label className="block mb-2 font-medium">
-        {label}
-        {required && (
-          <span className="text-red-500"> *</span>
-        )}
-      </label>
+      {label && (
+        <label className="block mb-2 font-medium">
+          {label}
+          {required && (
+            <span className="text-red-500"> *</span>
+          )}
+        </label>
+      )}
 
       <div className="relative">
         <input
